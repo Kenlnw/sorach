@@ -1,0 +1,22 @@
+my-c-library/
+├── .github/                # GitHub specific configurations
+│   └── workflows/
+│       └── ci.yml          # Continuous Integration (GitHub Actions)
+├── cmake/                  # Custom CMake helper modules/scripts (if using CMake)
+├── docs/                   # Documentation files (Markdown or Doxygen configuration)
+├── include/                # Public API header files
+│   └── mylib/              # Namespace subdirectory to prevent naming collisions
+│       └── mylib.h
+├── src/                    # Private source files (.c) and internal headers (.h)
+│   ├── internal.h          # Shared hidden logic (not exposed to user)
+│   └── mylib.c
+├── tests/                  # Unit tests and test suites
+│   ├── test_main.c
+│   └── test_core.c
+├── examples/               # Example programs showing how to use the library
+│   └── basic_example.c
+├── .gitignore              # Files git should ignore (build/ directories, object files)
+├── CHANGELOG.md            # History of features and bug fixes
+├── CMakeLists.txt          # Root build system file (or Makefile)
+├── LICENSE                 # Open-source license (e.g., MIT, Apache 2.0)
+└── README.md               # Quick start, building instructions, and description
