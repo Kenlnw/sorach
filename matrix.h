@@ -1,8 +1,47 @@
 #ifndef MATRIX_H
 #define MATRIX_H
 
+#include <stddef.h>
 #include "lib/arena.h"
 
+/*
+ * Matrix library.
+ *
+ * A Matrix is a rows x cols grid of Scalar values stored in one flat block,
+ * row by row (row-major order). Element (r, c) is at data[r * cols + c].
+ *
+ * Conventions shared by every function:
+ *   - Results are written into a matrix the caller provides ("out").
+ *     Functions do not allocate: only mat_new takes memory from an arena.
+ *     The square-matrix functions borrow scratch space from an arena and
+ *     give it back before they return.
+ *   - A Matrix is passed by value. The struct holds only a shape and a
+ *     pointer, so a copy still refers to the same elements.
+ *   - Caller mistakes (wrong shape, NULL data, index out of range) stop the
+ *     program with an assert. Only the file functions and the functions that
+ *     can meet a singular matrix report failure through a return value.
+ *   - Row and column indexes start at 0.
+ *
+ * Typical use:
+ *     Arena arena = arena_create(1024 * 1024);
+ *
+ *     Matrix a = mat_new(&arena, 2, 3);
+ *     Matrix b = mat_new(&arena, 3, 2);
+ *     Matrix c = mat_new(&arena, 2, 2);
+ *     mat_fillall(a, 1);
+ *     mat_fillall(b, 2);
+ *     mat_mul(c, a, b);
+ *     mat_print(c);
+ *
+ *     arena_destroy(&arena);
+ */
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+// The element type. float by default; compile with -DMAT_USE_DOUBLE to make
+// every matrix use double. All files in a program must use the same setting.
 #ifdef MAT_USE_DOUBLE
 typedef double Scalar;
 #else
@@ -10,62 +49,153 @@ typedef float Scalar;
 #endif
 
 typedef struct {
-    int rows, cols;
-    Scalar *data;
+    int     rows, cols;   // shape
+    Scalar *data;         // rows * cols elements, row by row
 } Matrix;
 
+// Direction for the functions that work along one dimension. The axis names
+// the dimension that is collapsed, as in NumPy:
+//   ROW: go down through the rows    -> one result per column
+//   COL: go across through the columns -> one result per row
 typedef enum { ROW = 0, COL = 1 } Axis;
 
+// Element (r, c) of matrix m, usable for both reading and writing:
+//     Scalar x = MAT_AT(m, 0, 2);
+//     MAT_AT(m, 0, 2) = 5;
+// No bounds checking is done. m is evaluated twice, so do not pass an
+// expression with side effects.
 #define MAT_AT(m, r, c) ((m).data[(r) * (m).cols + (c)])
 
 // ---------------------------------------------------------------------------
-// Allocation (the only function that uses an arena)
+// Creation
 // ---------------------------------------------------------------------------
-Matrix mat_new(Arena *arena, int rows, int cols);    // zero-filled
+
+// Create a rows x cols matrix in the arena, with every element set to 0.
+// rows and cols must be greater than 0. The matrix stays valid until the
+// arena is reset, rewound past it, or destroyed.
+Matrix mat_new(Arena *arena, int rows, int cols);
 
 // ---------------------------------------------------------------------------
-// Construction (fill a matrix that already exists)
+// Filling (set the contents of a matrix that already exists)
 // ---------------------------------------------------------------------------
-void mat_fillall(Matrix m, Scalar value);           // every element = value
-void mat_copy(Matrix dst, Matrix src);               // dst = src
-void mat_identity(Matrix out);                       // 1s on the diagonal, 0s elsewhere (square)
-void mat_from_array(Matrix out, const Scalar *src);   // copy rows*cols values from a plain array
+
+// Set every element to value.
+void mat_fillall(Matrix m, Scalar value);
+
+// Copy every element of src into dst. The shapes must match.
+void mat_copy(Matrix dst, Matrix src);
+
+// Make out the identity matrix: 1 on the diagonal, 0 elsewhere.
+// out must be square.
+void mat_identity(Matrix out);
+
+// Copy rows * cols values from a plain array into out, row by row.
+// src must hold at least that many values; this cannot be checked.
+void mat_from_array(Matrix out, const Scalar *src);
+
+// ---------------------------------------------------------------------------
+// Random values
+// ---------------------------------------------------------------------------
+
+// Seed the random generator used by the functions below. The same seed
+// always produces the same sequence, which makes runs repeatable.
+void mat_seed(unsigned int seed);
+
+// Fill out with values spread evenly over the range low <= x < high.
+// low must be less than high.
 void mat_rand_uniform(Matrix out, Scalar low, Scalar high);
+
+// Fill out with values from a normal (bell curve) distribution with the
+// given mean and standard deviation. std must not be negative.
 void mat_rand_normal(Matrix out, Scalar mean, Scalar std);
 
 // ---------------------------------------------------------------------------
-// Views (no copying; the result shares memory with the original)
+// Views
+// A view is a Matrix that points into another matrix's memory. Nothing is
+// copied: writing through the view changes the original, and the view
+// becomes invalid when the original's arena is reset, rewound, or destroyed.
 // ---------------------------------------------------------------------------
-Matrix mat_row_view(Matrix m, int row);               // 1×cols matrix pointing at one row
-Matrix mat_rows_view(Matrix m, int start, int count); // several consecutive rows
-Matrix mat_reshape(Matrix m, int rows, int cols);     // same data, new shape
+
+// A 1 x cols view of one row of m.
+Matrix mat_row_view(Matrix m, int row);
+
+// A count x cols view of consecutive rows of m, beginning at row start.
+// The range start .. start + count - 1 must lie inside m.
+Matrix mat_rows_view(Matrix m, int start, int count);
+
+// A view of all of m's elements with a different shape.
+// rows * cols must equal m.rows * m.cols.
+Matrix mat_reshape(Matrix m, int rows, int cols);
+
+// ---------------------------------------------------------------------------
+// Rows and columns
+// ---------------------------------------------------------------------------
+
+// Copy column col of m into out. out must be m.rows x 1.
+// (A column cannot be a view, because its elements are not adjacent.)
+void mat_get_col(Matrix out, Matrix m, int col);
+
+// Copy src into column col of m. src must be m.rows x 1.
+void mat_set_col(Matrix m, int col, Matrix src);
+
+// Exchange two rows of m. Swapping a row with itself does nothing.
+void mat_swap_rows(Matrix m, int row_a, int row_b);
+
+// Return 1 if a and b have the same number of rows and columns, else 0.
+int mat_same_shape(Matrix a, Matrix b);
 
 // ---------------------------------------------------------------------------
 // Linear algebra
-// out must NOT be the same matrix as a or b
+// out must NOT share memory with an input: these functions read elements
+// after writing others, so overlapping would corrupt the result.
 // ---------------------------------------------------------------------------
-void mat_mul(Matrix out, Matrix a, Matrix b);        // out = a @ b
-void mat_transpose(Matrix out, Matrix a);            // out = a.T
+
+// Matrix product: out = a @ b.
+// Requires a.cols == b.rows; out must be a.rows x b.cols.
+void mat_mul(Matrix out, Matrix a, Matrix b);
+
+// Transpose: out = a.T. out must be a.cols x a.rows.
+void mat_transpose(Matrix out, Matrix a);
+
+// Transpose a square matrix in place.
+void mat_transpose_inplace(Matrix m);
+
+// Sum of the products of corresponding elements. a and b must have the same
+// shape. For two vectors this is the dot product.
+Scalar mat_dot(Matrix a, Matrix b);
 
 // ---------------------------------------------------------------------------
 // Elementwise
-// out MAY be the same matrix as a or b
+// All matrices involved must have the same shape. out MAY be the same
+// matrix as an input, so mat_add(a, a, b) computes a += b.
 // ---------------------------------------------------------------------------
+
 void mat_add(Matrix out, Matrix a, Matrix b);        // out = a + b
 void mat_sub(Matrix out, Matrix a, Matrix b);        // out = a - b
-void mat_hadamard(Matrix out, Matrix a, Matrix b);   // out = a * b per element
-void mat_div(Matrix out, Matrix a, Matrix b);        // out = a / b per element
-void mat_apply(Matrix out, Matrix a, Scalar (*f)(Scalar));  // out = f(a) per element
+void mat_hadamard(Matrix out, Matrix a, Matrix b);   // out = a * b
 
-void mat_scale(Matrix m, Scalar s);             // mat *= scale
-void mat_add_scalar(Matrix m, Scalar s);            // mat += s
-void mat_add_scaled(Matrix y, Scalar s, Matrix x);// y += s * x
+// out = a / b. Division by a zero element is not checked and produces
+// inf or nan, following normal floating-point rules.
+void mat_div(Matrix out, Matrix a, Matrix b);
+
+// out = f(a): call f on every element of a. f must not be NULL.
+void mat_apply(Matrix out, Matrix a, Scalar (*f)(Scalar));
+
+void mat_scale(Matrix m, Scalar s);                  // m *= s
+void mat_add_scalar(Matrix m, Scalar s);             // m += s
+void mat_add_scaled(Matrix y, Scalar s, Matrix x);   // y += s * x
+
+// Limit every element to the range low .. high. low must not exceed high.
+void mat_clamp(Matrix m, Scalar low, Scalar high);
 
 // ---------------------------------------------------------------------------
-// Broadcasting a vector across a matrix (direction decided by v's shape)
-//   v is 1×cols: applied to every row
-//   v is rows×1: applied to every column
+// Broadcasting a vector across a matrix
+// The direction is decided by the shape of v:
+//   v is 1 x m.cols: applied to every row
+//   v is m.rows x 1: applied to every column
+// Any other shape stops the program.
 // ---------------------------------------------------------------------------
+
 void mat_add_vec(Matrix m, Matrix v);                // m += v
 void mat_sub_vec(Matrix m, Matrix v);                // m -= v
 void mat_mul_vec(Matrix m, Matrix v);                // m *= v
@@ -73,47 +203,92 @@ void mat_div_vec(Matrix m, Matrix v);                // m /= v
 
 // ---------------------------------------------------------------------------
 // Reductions along an axis
-//   axis ROW: collapse the rows    -> out is 1×cols (one value per column)
-//   axis COL: collapse the columns -> out is rows×1 (one value per row)
+//   ROW: collapse the rows    -> out must be 1 x m.cols (one value per column)
+//   COL: collapse the columns -> out must be m.rows x 1 (one value per row)
+// out must not be m.
 // ---------------------------------------------------------------------------
+
 void mat_sum(Matrix out, Matrix m, Axis axis);
 void mat_mean(Matrix out, Matrix m, Axis axis);
 void mat_max(Matrix out, Matrix m, Axis axis);
 void mat_min(Matrix out, Matrix m, Axis axis);
 
-// Index of the largest value along an axis
-//   axis ROW: out has m.cols entries (row index of the max in each column)
-//   axis COL: out has m.rows entries (column index of the max in each row)
+// Position of the largest (argmax) or smallest (argmin) value along an axis.
+//   ROW: out receives m.cols entries, the row index of the result in each column
+//   COL: out receives m.rows entries, the column index of the result in each row
+// out_len must be exactly that number of entries. When several values tie,
+// the first position is reported.
 void mat_argmax(int *out, size_t out_len, Matrix m, Axis axis);
 void mat_argmin(int *out, size_t out_len, Matrix m, Axis axis);
 
 // ---------------------------------------------------------------------------
 // Reductions over the whole matrix
 // ---------------------------------------------------------------------------
+
 Scalar mat_sum_all(Matrix m);
 Scalar mat_mean_all(Matrix m);
 Scalar mat_max_all(Matrix m);
 Scalar mat_min_all(Matrix m);
-Scalar mat_norm(Matrix m);                            // sqrt of the sum of squares
+
+// Frobenius norm: the square root of the sum of the squared elements.
+// For a vector this is its length.
+Scalar mat_norm(Matrix m);
 
 // ---------------------------------------------------------------------------
 // Comparison
 // ---------------------------------------------------------------------------
-int mat_equal(Matrix a, Matrix b, Scalar eps);        // 1 if all elements differ by < eps
+
+// Return 1 if a and b have the same shape and every pair of corresponding
+// elements differs by less than epsilon; otherwise return 0. Use a small
+// positive epsilon (about 1e-5 for float, 1e-9 for double) instead of testing
+// for exact equality, because floating-point results carry rounding error.
+int mat_equal(Matrix a, Matrix b, Scalar epsilon);
 
 // ---------------------------------------------------------------------------
 // Input and output
 // ---------------------------------------------------------------------------
+
+// Print the elements to standard output in NumPy style:
+//     [[   1.0000   2.0000 ]
+//      [   3.0000   4.0000 ]]
 void mat_print(Matrix m);
-void mat_save(Matrix m, const char *path);
-void mat_load(Matrix out, const char *path);
+
+// Print the shape as "(rows, cols)".
+void mat_print_shape(Matrix m);
+
+// Write m to a binary file: rows, cols and the element size as ints, then
+// the elements. Returns 1 on success. On failure, prints a message to stderr
+// and returns 0.
+int mat_save(Matrix m, const char *path);
+
+// Read a file written by mat_save into out. out must already have the shape
+// stored in the file, and the file must have been written with the same
+// Scalar type. Returns 1 on success. On failure, prints a message to stderr
+// and returns 0; out may then be partly overwritten.
+int mat_load(Matrix out, const char *path);
 
 // ---------------------------------------------------------------------------
 // Square-matrix linear algebra (not needed for neural networks)
+// These use Gaussian elimination with partial pivoting. They need working
+// space, which they take from the scratch arena and release before
+// returning, so the arena is left exactly as it was.
 // ---------------------------------------------------------------------------
+
+// Sum of the diagonal elements. m must be square.
 Scalar mat_trace(Matrix m);
-Scalar mat_det(Matrix m);
-void  mat_inverse(Matrix out, Matrix m);
-void  mat_solve(Matrix x, Matrix A, Matrix b);       // solve A·x = b
+
+// Determinant of m. m must be square and is not modified.
+// Returns 0 for a singular matrix.
+Scalar mat_det(Arena *scratch, Matrix m);
+
+// Inverse: out = m^-1. m and out must be square with the same shape, and
+// out must not be m. Returns 1 on success, or 0 if m is singular (has no
+// inverse), in which case out is left unspecified.
+int mat_inverse(Arena *scratch, Matrix out, Matrix m);
+
+// Solve A @ x = b for x. A must be n x n; b and x must both be n x k, so
+// several right-hand sides can be solved at once. A and b are not modified.
+// Returns 1 on success, or 0 if A is singular.
+int mat_solve(Arena *scratch, Matrix x, Matrix A, Matrix b);
 
 #endif

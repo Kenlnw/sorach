@@ -420,3 +420,134 @@ void mat_argmin(int *out, size_t out_len, Matrix m, Axis axis) {
     }
     else assert(0 && "mat_argmin: out's length must be m.cols (ROW) or m.rows (COL)");
 }
+
+Scalar mat_sum_all(Matrix m)  {
+    assert(m.data != NULL);
+    double sum = 0;
+    for (int i = 0; i < m.rows * m.cols; i++) sum += m.data[i];
+    return sum;
+}
+
+Scalar mat_mean_all(Matrix m)  {
+    assert(m.data != NULL);
+    double sum = 0;
+    int m_len = m.rows * m.cols;
+    for (int i = 0; i < m_len; i++) sum += m.data[i];
+    return (Scalar) sum / m_len;
+}
+
+Scalar mat_max_all(Matrix m) {
+    assert(m.data != NULL);
+    Scalar max = m.data[0];
+    for (int i = 1; i < m.rows * m.cols; i++)
+        max = max < m.data[i] ? m.data[i] : max;
+    return max;
+}
+
+Scalar mat_min_all(Matrix m) {
+    assert(m.data != NULL);
+    Scalar min = m.data[0];
+    for (int i = 1; i < m.rows * m.cols; i++)
+        min = min > m.data[i] ? m.data[i] : min;
+    return min;
+}
+
+Scalar mat_norm(Matrix m) {
+    assert(m.data != NULL);
+    double squared_sum = 0;
+    int m_len = m.rows * m.cols;
+    for (int i = 0; i < m_len; i++)
+        squared_sum += m.data[i] * m.data[i];
+    return (Scalar) sqrt(squared_sum);
+}
+
+int mat_equal(Matrix a, Matrix b, Scalar epsilon) {
+    assert(a.data != NULL && b.data != NULL);
+    if (a.rows != b.rows || a.cols != b.cols) return 0;
+
+    for (int i = 0; i < a.rows * a.cols; i++)
+        if (fabs(a.data[i] - b.data[i]) >= epsilon) return 0;
+    return 1;
+}
+
+void mat_print(Matrix m) {
+    assert(m.data != NULL);
+
+    printf("[");
+    for (int row = 0; row < m.rows; row++) {
+        printf("[");
+        for (int col = 0; col < m.cols; col++)
+            printf(" %8.4f", (double)MAT_AT(m, row, col));
+        printf("%s\n", row == m.rows - 1 ? " ]]" : " ]");
+    }
+}
+
+int mat_save(Matrix m, const char *path) {
+    assert(m.data != NULL && path != NULL);
+    FILE *fp = fopen(path, "wb");
+
+    if (fp == NULL) {
+        fprintf(stderr, "mat_save: cannot open '%s'\n", path);
+        return 0;
+    }
+
+    int ele_size = (int) sizeof(Scalar);
+    size_t data_len = (size_t)m.rows * m.cols;
+
+    int is_completed = fwrite(&m.rows, sizeof(int), 1, fp) == 1
+                    && fwrite(&m.cols, sizeof(int), 1, fp) == 1
+                    && fwrite(&ele_size, sizeof(int), 1, fp) == 1
+                    && fwrite(m.data, sizeof(Scalar), data_len, fp) == data_len;
+
+    if (!is_completed)
+        fprintf(stderr, "mat_save: write failed for '%s'\n", path);
+
+    fclose(fp);
+    return is_completed;
+}
+
+int mat_load(Matrix out, const char *path) {
+    assert(out.data != NULL && path != NULL);
+    FILE *fp = fopen(path, "rb");
+
+    if (fp == NULL) {
+        fprintf(stderr, "mat_save: cannot open '%s'\n", path);
+        return 0;
+    }
+
+    int rows, cols, ele_size;
+    int is_completed = fread(&rows, sizeof(int), 1, fp) == 1
+                    && fread(&cols, sizeof(int), 1, fp) == 1
+                    && fread(&ele_size, sizeof(int), 1, fp) == 1;
+
+    if (!is_completed)
+        fprintf(stderr, "mat_load: cannot read header of '%s'\n", path);
+    else if (rows != out.rows || cols != out.cols) {
+        fprintf(stderr, "mat_load: '%s' is %d x %d, expected %d x %d\n",
+                path, rows, cols, out.rows, out.cols);
+        is_completed = 0;
+    }
+    else if (ele_size != (int)sizeof(Scalar)) {
+        fprintf(stderr, "mat_load: '%s' has %d-byte elements, expected %d\n",
+                path, ele_size, (int)sizeof(Scalar));
+        is_completed = 0;
+    }
+    else {
+        size_t data_len = (size_t)out.rows * out.cols;
+        is_completed = fread(out.data, ele_size, data_len, fp) == data_len;
+        if (!is_completed) fprintf(stderr, "mat_save: reading element values failed for '%s'\n", path);
+    }
+
+    fclose(fp);
+    return is_completed;
+}
+
+Scalar mat_trace(Matrix m) {
+    assert(m.data != NULL);
+    assert(m.rows == m.cols);
+
+    double trace = 0.0;
+    for (int i = 0; i < m.rows; i++)
+        trace += MAT_AT(m, i, i);
+    return (Scalar)trace;
+}

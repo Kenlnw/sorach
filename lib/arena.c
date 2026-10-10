@@ -41,6 +41,15 @@ void arena_reset(Arena *arena) {
     arena->cur_offset = 0;
 }
 
+size_t arena_mark(Arena *arena) {
+    return arena->cur_offset;
+}
+
+void arena_rewind(Arena *arena, size_t mark) {
+    assert(mark <= arena->cur_offset);
+    arena->cur_offset = mark;
+}
+
 void arena_destroy(Arena *arena) {
     free(arena->buff);
     arena->buff = NULL;
