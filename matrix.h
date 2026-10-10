@@ -84,7 +84,8 @@ void mat_min(Matrix out, Matrix m, Axis axis);
 // Index of the largest value along an axis
 //   axis ROW: out has m.cols entries (row index of the max in each column)
 //   axis COL: out has m.rows entries (column index of the max in each row)
-void mat_argmax(int *out, Matrix m, Axis axis);
+void mat_argmax(int *out, size_t out_len, Matrix m, Axis axis);
+void mat_argmin(int *out, size_t out_len, Matrix m, Axis axis);
 
 // ---------------------------------------------------------------------------
 // Reductions over the whole matrix

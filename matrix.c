@@ -376,3 +376,47 @@ void mat_min(Matrix out, Matrix m, Axis axis) {
     }
     else assert(0 && "mat_min: out's size must be 1 x cols (ROW) or rows x 1 (COL)");
 }
+
+void mat_argmax(int *out, size_t out_len, Matrix m, Axis axis) {
+    assert(m.data != NULL && out != NULL);
+
+    if (axis == ROW && out_len == (size_t) m.cols) {
+        for (int m_col = 0; m_col < m.cols; m_col++) {
+            int max_idx = 0;
+            for (int m_row = 1; m_row < m.rows; m_row++)
+                max_idx = MAT_AT(m, max_idx, m_col) < MAT_AT(m, m_row, m_col) ? m_row : max_idx;
+            out[m_col] = max_idx;
+        }
+    }
+    else if (axis == COL && out_len == (size_t) m.rows) {
+        for (int m_row = 0; m_row < m.rows; m_row++) {
+            int max_idx = 0;
+            for (int m_col = 1; m_col < m.cols; m_col++)
+                max_idx = MAT_AT(m, m_row, max_idx) < MAT_AT(m, m_row, m_col) ? m_col : max_idx;
+            out[m_row] = max_idx;
+        }
+    }
+    else assert(0 && "mat_argmax: out's length must be m.cols (ROW) or m.rows (COL)");
+}
+
+void mat_argmin(int *out, size_t out_len, Matrix m, Axis axis) {
+    assert(m.data != NULL && out != NULL);
+
+    if (axis == ROW && out_len == (size_t) m.cols) {
+        for (int m_col = 0; m_col < m.cols; m_col++) {
+            int min_idx = 0;
+            for (int m_row = 1; m_row < m.rows; m_row++)
+                min_idx = MAT_AT(m, min_idx, m_col) > MAT_AT(m, m_row, m_col) ? m_row : min_idx;
+            out[m_col] = min_idx;
+        }
+    }
+    else if (axis == COL && out_len == (size_t) m.rows) {
+        for (int m_row = 0; m_row < m.rows; m_row++) {
+            int min_idx = 0;
+            for (int m_col = 1; m_col < m.cols; m_col++)
+                min_idx = MAT_AT(m, m_row, min_idx) > MAT_AT(m, m_row, m_col) ? m_col : min_idx;
+            out[m_row] = min_idx;
+        }
+    }
+    else assert(0 && "mat_argmin: out's length must be m.cols (ROW) or m.rows (COL)");
+}
