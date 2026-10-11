@@ -1,5 +1,5 @@
-#ifndef ARENA_H
-#define ARENA_H
+#ifndef SORA_ARENA_H
+#define SORA_ARENA_H
 
 #include <stddef.h>
 
@@ -13,7 +13,7 @@
  *
  * Typical use:
  *     Arena arena = arena_create(1024 * 1024);
- *     float *x = arena_alloc(&arena, 100 * sizeof(float), DEFAULT_ALIGN);
+ *     float *x = arena_alloc(&arena, 100 * sizeof(float), ARENA_DEFAULT_ALIGN);
  *     ...
  *     arena_destroy(&arena);
  *
@@ -29,7 +29,7 @@ typedef struct {
 
 // Alignment used when the caller has no special requirement. 16 bytes suits
 // every standard C type and SSE vector instructions.
-#define DEFAULT_ALIGN 16
+#define ARENA_DEFAULT_ALIGN 16
 
 // Create an arena with a buffer of buff_size bytes.
 // Stops the program if the memory cannot be obtained.

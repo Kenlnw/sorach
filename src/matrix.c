@@ -1,5 +1,5 @@
-#include "matrix.h"
-#include<stdlib.h>
+#include <sora/matrix.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
@@ -38,7 +38,7 @@ static int gauss_jordan(Matrix work, Matrix rhs) {
         }
 
         // Scale the pivot row of BOTH by 1/pivot
-        Scalar pivot = MAT_AT(work, col, col);
+        MatScalar pivot = MAT_AT(work, col, col);
         mat_scale(mat_row_view(work, col), 1 / pivot);
         mat_scale(mat_row_view(rhs, col), 1 / pivot);
 
@@ -46,7 +46,7 @@ static int gauss_jordan(Matrix work, Matrix rhs) {
         for (int row = 0; row < work.rows; row++) {
             if (row == col) continue;
 
-            Scalar s = -MAT_AT(work, row, col);
+            MatScalar s = -MAT_AT(work, row, col);
             mat_add_scaled(mat_row_view(work, row), s, mat_row_view(work, col));
             mat_add_scaled(mat_row_view(rhs, row), s, mat_row_view(rhs, col));
         }
@@ -59,18 +59,18 @@ Matrix mat_new(Arena *arena, int rows, int cols) {
     assert(rows > 0);
     assert(cols > 0);
 
-    size_t data_size = (size_t) rows * cols * sizeof(Scalar);
+    size_t data_size = (size_t) rows * cols * sizeof(MatScalar);
     Matrix m = {
         .rows = rows,
         .cols = cols,
-        .data = arena_alloc_zero(arena, data_size, DEFAULT_ALIGN)
+        .data = arena_alloc_zero(arena, data_size, ARENA_DEFAULT_ALIGN)
     };
 
     assert(m.data != NULL);
     return m;
 }
 
-void mat_fillall(Matrix m, Scalar value) {
+void mat_fillall(Matrix m, MatScalar value) {
     assert(m.data != NULL);
     for (int i = 0; i < (m.rows * m.cols); i++)
         m.data[i] = value;
@@ -82,7 +82,7 @@ void mat_copy(Matrix dst, Matrix src) {
     assert(dst.cols == src.cols);
 
     // copy all elements in src.data into dst.data
-    memcpy(dst.data, src.data, (size_t) src.rows * src.cols * sizeof(Scalar));
+    memcpy(dst.data, src.data, (size_t) src.rows * src.cols * sizeof(MatScalar));
 }
 
 void mat_identity(Matrix out) {
@@ -94,27 +94,27 @@ void mat_identity(Matrix out) {
         MAT_AT(out, i, i) = 1.0f;
 }
 
-void mat_from_array(Matrix out, const Scalar *src) {
+void mat_from_array(Matrix out, const MatScalar *src) {
     assert(out.data != NULL && src != NULL);
-    memcpy(out.data, src, (size_t) out.rows * out.cols * sizeof(Scalar));
+    memcpy(out.data, src, (size_t) out.rows * out.cols * sizeof(MatScalar));
 }
 
 void mat_seed(unsigned int seed) {
     srand(seed);
 }
 
-void mat_rand_uniform(Matrix out, Scalar low, Scalar high) {
+void mat_rand_uniform(Matrix out, MatScalar low, MatScalar high) {
     assert(out.data != NULL && low < high);
 
     for (int i = 0; i < out.rows * out.cols; i++)
-        out.data[i] = (Scalar)(low + (high - low) * rand01());
+        out.data[i] = (MatScalar)(low + (high - low) * rand01());
 }
 
-void mat_rand_normal(Matrix out, Scalar mean, Scalar std) {
+void mat_rand_normal(Matrix out, MatScalar mean, MatScalar std) {
     assert(out.data != NULL && std >= 0);
 
     for (int i = 0; i < out.rows * out.cols; i++)
-        out.data[i] = (Scalar)(mean + std * randn());
+        out.data[i] = (MatScalar)(mean + std * randn());
 }
 
 Matrix mat_row_view(Matrix m, int row) {
@@ -189,7 +189,7 @@ void mat_swap_rows(Matrix m, int row_a, int row_b) {
     if (row_a == row_b) return;
 
     for (int col = 0; col < m.cols; col++) {
-        Scalar temp = MAT_AT(m, row_a, col);
+        MatScalar temp = MAT_AT(m, row_a, col);
         MAT_AT(m, row_a, col) = MAT_AT(m, row_b, col);
         MAT_AT(m, row_b, col) = temp;
     }
@@ -203,7 +203,7 @@ void mat_swap_cols(Matrix m, int col_a, int col_b) {
     if (col_a == col_b) return;
 
     for (int row = 0; row < m.rows; row++) {
-        Scalar temp = MAT_AT(m, row, col_a);
+        MatScalar temp = MAT_AT(m, row, col_a);
         MAT_AT(m, row, col_a) = MAT_AT(m, row, col_b);
         MAT_AT(m, row, col_b) = temp;
     }
@@ -222,7 +222,7 @@ void mat_mul(Matrix out, Matrix a, Matrix b) {
 
     for (int a_row = 0; a_row < a.rows; a_row++) {
         for (int b_col = 0; b_col < b.cols; b_col++) {
-            Scalar sum = 0;
+            MatScalar sum = 0;
             for (int a_col = 0; a_col < a.cols; a_col++)
                 sum += MAT_AT(a, a_row, a_col) * MAT_AT(b, a_col, b_col);
             MAT_AT(out, a_row, b_col) = sum;
@@ -246,18 +246,18 @@ void mat_transpose_inplace(Matrix m) {
 
     for (int row = 0; row < m.rows; row++) {
         for (int col = row + 1; col < m.rows; col++) {
-            Scalar temp = MAT_AT(m, row, col);
+            MatScalar temp = MAT_AT(m, row, col);
             MAT_AT(m, row, col) = MAT_AT(m, col, row);
             MAT_AT(m, col, row) = temp;
         }
     }
 }
 
-Scalar mat_dot(Matrix a, Matrix b) {
+MatScalar mat_dot(Matrix a, Matrix b) {
     assert(a.data != NULL && b.data != NULL);
     assert(mat_same_shape(a, b));
 
-    Scalar dot = 0;
+    MatScalar dot = 0;
     for (int i = 0; i < a.rows * a.cols; i++)
         dot += a.data[i] * b.data[i];
     return dot;
@@ -299,7 +299,7 @@ void mat_div(Matrix out, Matrix a, Matrix b) {
         out.data[i] = a.data[i] / b.data[i];
 }
 
-void mat_apply(Matrix out, Matrix a, Scalar (*func)(Scalar)) {
+void mat_apply(Matrix out, Matrix a, MatScalar (*func)(MatScalar)) {
     assert(a.data != NULL && out.data != NULL && func != NULL);
     assert(out.rows == a.rows && out.cols == a.cols);
 
@@ -307,21 +307,21 @@ void mat_apply(Matrix out, Matrix a, Scalar (*func)(Scalar)) {
         out.data[i] = func(a.data[i]);
 }
 
-void mat_scale(Matrix m, Scalar s) {
+void mat_scale(Matrix m, MatScalar s) {
     assert(m.data != NULL);
 
     for (int i = 0; i < m.rows * m.cols; i++)
         m.data[i] *= s;
 }
 
-void mat_add_scalar(Matrix m, Scalar s) {
+void mat_add_scalar(Matrix m, MatScalar s) {
     assert(m.data != NULL);
 
     for (int i = 0; i < m.rows * m.cols; i++)
         m.data[i] += s;
 }
 
-void mat_add_scaled(Matrix a, Scalar s, Matrix b) {
+void mat_add_scaled(Matrix a, MatScalar s, Matrix b) {
     assert(a.data != NULL && b.data != NULL);
     assert(a.rows == b.rows && a.cols == b.cols);
 
@@ -329,7 +329,7 @@ void mat_add_scaled(Matrix a, Scalar s, Matrix b) {
         a.data[i] += s * b.data[i];
 }
 
-void mat_clamp(Matrix m, Scalar low, Scalar high) {
+void mat_clamp(Matrix m, MatScalar low, MatScalar high) {
     assert(m.data != NULL);
     assert(low <= high);
 
@@ -411,102 +411,102 @@ void mat_div_vec(Matrix m, Matrix v) {
     else assert(0 && "mat_div_vec: v's size must be 1 x cols or rows x 1");
 }
 
-void mat_sum(Matrix out, Matrix m, Axis axis) {
+void mat_sum(Matrix out, Matrix m, MatAxis axis) {
     assert(m.data != NULL && out.data != NULL);
     assert(out.data != m.data);
 
-    if (axis == ROW && out.rows == 1 && out.cols == m.cols) {
+    if (axis == MAT_ROW && out.rows == 1 && out.cols == m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
             double sum = 0;
             for (int m_row = 0; m_row < m.rows; m_row++)
                 sum += MAT_AT(m, m_row, m_col);
-            MAT_AT(out, 0, m_col) = (Scalar)sum;
+            MAT_AT(out, 0, m_col) = (MatScalar)sum;
         }
     }
-    else if (axis == COL && out.rows == m.rows && out.cols == 1) {
+    else if (axis == MAT_COL && out.rows == m.rows && out.cols == 1) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             double sum = 0;
             for (int m_col = 0; m_col < m.cols; m_col++)
                 sum += MAT_AT(m, m_row, m_col);
-            MAT_AT(out, m_row, 0) = (Scalar)sum;
+            MAT_AT(out, m_row, 0) = (MatScalar)sum;
         }
     }
-    else assert(0 && "mat_sum: out's size must be 1 x cols (ROW) or rows x 1 (COL)");
+    else assert(0 && "mat_sum: out's size must be 1 x cols (MAT_ROW) or rows x 1 (MAT_COL)");
 }
 
-void mat_mean(Matrix out, Matrix m, Axis axis) {
+void mat_mean(Matrix out, Matrix m, MatAxis axis) {
     assert(m.data != NULL && out.data != NULL);
     assert(out.data != m.data);
 
-    if (axis == ROW && out.rows == 1 && out.cols == m.cols) {
+    if (axis == MAT_ROW && out.rows == 1 && out.cols == m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
             double sum = 0;
             for (int m_row = 0; m_row < m.rows; m_row++)
                 sum += MAT_AT(m, m_row, m_col);
-            MAT_AT(out, 0, m_col) = (Scalar)(sum / m.rows);
+            MAT_AT(out, 0, m_col) = (MatScalar)(sum / m.rows);
         }
     }
-    else if (axis == COL && out.rows == m.rows && out.cols == 1) {
+    else if (axis == MAT_COL && out.rows == m.rows && out.cols == 1) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             double sum = 0;
             for (int m_col = 0; m_col < m.cols; m_col++)
                 sum += MAT_AT(m, m_row, m_col);
-            MAT_AT(out, m_row, 0) = (Scalar)(sum / m.cols);
+            MAT_AT(out, m_row, 0) = (MatScalar)(sum / m.cols);
         }
     }
-    else assert(0 && "mat_mean: out's size must be 1 x cols (ROW) or rows x 1 (COL)");
+    else assert(0 && "mat_mean: out's size must be 1 x cols (MAT_ROW) or rows x 1 (MAT_COL)");
 }
 
-void mat_max(Matrix out, Matrix m, Axis axis) {
+void mat_max(Matrix out, Matrix m, MatAxis axis) {
     assert(m.data != NULL && out.data != NULL);
     assert(out.data != m.data);
 
-    if (axis == ROW && out.rows == 1 && out.cols == m.cols) {
+    if (axis == MAT_ROW && out.rows == 1 && out.cols == m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
-            Scalar max = MAT_AT(m, 0, m_col);
+            MatScalar max = MAT_AT(m, 0, m_col);
             for (int m_row = 1; m_row < m.rows; m_row++)
                 max = max < MAT_AT(m, m_row, m_col) ? MAT_AT(m, m_row, m_col) : max;
             MAT_AT(out, 0, m_col) = max;
         }
     }
-    else if (axis == COL && out.rows == m.rows && out.cols == 1) {
+    else if (axis == MAT_COL && out.rows == m.rows && out.cols == 1) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
-            Scalar max = MAT_AT(m, m_row, 0);
+            MatScalar max = MAT_AT(m, m_row, 0);
             for (int m_col = 1; m_col < m.cols; m_col++)
                 max = max < MAT_AT(m, m_row, m_col) ? MAT_AT(m, m_row, m_col) : max;
             MAT_AT(out, m_row, 0) = max;
         }
     }
-    else assert(0 && "mat_max: out's size must be 1 x cols (ROW) or rows x 1 (COL)");
+    else assert(0 && "mat_max: out's size must be 1 x cols (MAT_ROW) or rows x 1 (MAT_COL)");
 }
 
-void mat_min(Matrix out, Matrix m, Axis axis) {
+void mat_min(Matrix out, Matrix m, MatAxis axis) {
     assert(m.data != NULL && out.data != NULL);
     assert(out.data != m.data);
 
-    if (axis == ROW && out.rows == 1 && out.cols == m.cols) {
+    if (axis == MAT_ROW && out.rows == 1 && out.cols == m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
-            Scalar min = MAT_AT(m, 0, m_col);
+            MatScalar min = MAT_AT(m, 0, m_col);
             for (int m_row = 1; m_row < m.rows; m_row++)
                 min = min > MAT_AT(m, m_row, m_col) ? MAT_AT(m, m_row, m_col) : min;
             MAT_AT(out, 0, m_col) = min;
         }
     }
-    else if (axis == COL && out.rows == m.rows && out.cols == 1) {
+    else if (axis == MAT_COL && out.rows == m.rows && out.cols == 1) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
-            Scalar min = MAT_AT(m, m_row, 0);
+            MatScalar min = MAT_AT(m, m_row, 0);
             for (int m_col = 1; m_col < m.cols; m_col++)
                 min = min > MAT_AT(m, m_row, m_col) ? MAT_AT(m, m_row, m_col) : min;
             MAT_AT(out, m_row, 0) = min;
         }
     }
-    else assert(0 && "mat_min: out's size must be 1 x cols (ROW) or rows x 1 (COL)");
+    else assert(0 && "mat_min: out's size must be 1 x cols (MAT_ROW) or rows x 1 (MAT_COL)");
 }
 
-void mat_argmax(int *out, size_t out_len, Matrix m, Axis axis) {
+void mat_argmax(int *out, size_t out_len, Matrix m, MatAxis axis) {
     assert(m.data != NULL && out != NULL);
 
-    if (axis == ROW && out_len == (size_t) m.cols) {
+    if (axis == MAT_ROW && out_len == (size_t) m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
             int max_idx = 0;
             for (int m_row = 1; m_row < m.rows; m_row++)
@@ -514,7 +514,7 @@ void mat_argmax(int *out, size_t out_len, Matrix m, Axis axis) {
             out[m_col] = max_idx;
         }
     }
-    else if (axis == COL && out_len == (size_t) m.rows) {
+    else if (axis == MAT_COL && out_len == (size_t) m.rows) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             int max_idx = 0;
             for (int m_col = 1; m_col < m.cols; m_col++)
@@ -522,13 +522,13 @@ void mat_argmax(int *out, size_t out_len, Matrix m, Axis axis) {
             out[m_row] = max_idx;
         }
     }
-    else assert(0 && "mat_argmax: out's length must be m.cols (ROW) or m.rows (COL)");
+    else assert(0 && "mat_argmax: out's length must be m.cols (MAT_ROW) or m.rows (MAT_COL)");
 }
 
-void mat_argmin(int *out, size_t out_len, Matrix m, Axis axis) {
+void mat_argmin(int *out, size_t out_len, Matrix m, MatAxis axis) {
     assert(m.data != NULL && out != NULL);
 
-    if (axis == ROW && out_len == (size_t) m.cols) {
+    if (axis == MAT_ROW && out_len == (size_t) m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
             int min_idx = 0;
             for (int m_row = 1; m_row < m.rows; m_row++)
@@ -536,7 +536,7 @@ void mat_argmin(int *out, size_t out_len, Matrix m, Axis axis) {
             out[m_col] = min_idx;
         }
     }
-    else if (axis == COL && out_len == (size_t) m.rows) {
+    else if (axis == MAT_COL && out_len == (size_t) m.rows) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             int min_idx = 0;
             for (int m_col = 1; m_col < m.cols; m_col++)
@@ -544,50 +544,50 @@ void mat_argmin(int *out, size_t out_len, Matrix m, Axis axis) {
             out[m_row] = min_idx;
         }
     }
-    else assert(0 && "mat_argmin: out's length must be m.cols (ROW) or m.rows (COL)");
+    else assert(0 && "mat_argmin: out's length must be m.cols (MAT_ROW) or m.rows (MAT_COL)");
 }
 
-Scalar mat_sum_all(Matrix m)  {
+MatScalar mat_sum_all(Matrix m)  {
     assert(m.data != NULL);
     double sum = 0;
     for (int i = 0; i < m.rows * m.cols; i++) sum += m.data[i];
     return sum;
 }
 
-Scalar mat_mean_all(Matrix m)  {
+MatScalar mat_mean_all(Matrix m)  {
     assert(m.data != NULL);
     double sum = 0;
     int m_len = m.rows * m.cols;
     for (int i = 0; i < m_len; i++) sum += m.data[i];
-    return (Scalar)(sum / m_len);
+    return (MatScalar)(sum / m_len);
 }
 
-Scalar mat_max_all(Matrix m) {
+MatScalar mat_max_all(Matrix m) {
     assert(m.data != NULL);
-    Scalar max = m.data[0];
+    MatScalar max = m.data[0];
     for (int i = 1; i < m.rows * m.cols; i++)
         max = max < m.data[i] ? m.data[i] : max;
     return max;
 }
 
-Scalar mat_min_all(Matrix m) {
+MatScalar mat_min_all(Matrix m) {
     assert(m.data != NULL);
-    Scalar min = m.data[0];
+    MatScalar min = m.data[0];
     for (int i = 1; i < m.rows * m.cols; i++)
         min = min > m.data[i] ? m.data[i] : min;
     return min;
 }
 
-Scalar mat_norm(Matrix m) {
+MatScalar mat_norm(Matrix m) {
     assert(m.data != NULL);
     double squared_sum = 0;
     int m_len = m.rows * m.cols;
     for (int i = 0; i < m_len; i++)
         squared_sum += m.data[i] * m.data[i];
-    return (Scalar) sqrt(squared_sum);
+    return (MatScalar) sqrt(squared_sum);
 }
 
-int mat_equal(Matrix a, Matrix b, Scalar epsilon) {
+int mat_equal(Matrix a, Matrix b, MatScalar epsilon) {
     assert(a.data != NULL && b.data != NULL);
     if (a.rows != b.rows || a.cols != b.cols) return 0;
 
@@ -621,13 +621,13 @@ int mat_save(Matrix m, const char *path) {
         return 0;
     }
 
-    int ele_size = (int) sizeof(Scalar);
+    int ele_size = (int) sizeof(MatScalar);
     size_t data_len = (size_t)m.rows * m.cols;
 
     int is_completed = fwrite(&m.rows, sizeof(int), 1, fp) == 1
                     && fwrite(&m.cols, sizeof(int), 1, fp) == 1
                     && fwrite(&ele_size, sizeof(int), 1, fp) == 1
-                    && fwrite(m.data, sizeof(Scalar), data_len, fp) == data_len;
+                    && fwrite(m.data, sizeof(MatScalar), data_len, fp) == data_len;
 
     if (!is_completed)
         fprintf(stderr, "mat_save: write failed for '%s'\n", path);
@@ -657,9 +657,9 @@ int mat_load(Matrix out, const char *path) {
                 path, rows, cols, out.rows, out.cols);
         is_completed = 0;
     }
-    else if (ele_size != (int)sizeof(Scalar)) {
+    else if (ele_size != (int)sizeof(MatScalar)) {
         fprintf(stderr, "mat_load: '%s' has %d-byte elements, expected %d\n",
-                path, ele_size, (int)sizeof(Scalar));
+                path, ele_size, (int)sizeof(MatScalar));
         is_completed = 0;
     }
     else {
@@ -672,17 +672,17 @@ int mat_load(Matrix out, const char *path) {
     return is_completed;
 }
 
-Scalar mat_trace(Matrix m) {
+MatScalar mat_trace(Matrix m) {
     assert(m.data != NULL);
     assert(m.rows == m.cols);
 
     double trace = 0.0;
     for (int i = 0; i < m.rows; i++)
         trace += MAT_AT(m, i, i);
-    return (Scalar)trace;
+    return (MatScalar)trace;
 }
 
-Scalar mat_det(Arena *arena, Matrix m) {
+MatScalar mat_det(Arena *arena, Matrix m) {
     assert(m.data != NULL);
     assert(m.rows == m.cols);
 
@@ -713,13 +713,13 @@ Scalar mat_det(Arena *arena, Matrix m) {
         }
 
         for (int row = col + 1; row < work.rows; row++) {
-            Scalar s = -(MAT_AT(work, row, col) / MAT_AT(work, col, col));
+            MatScalar s = -(MAT_AT(work, row, col) / MAT_AT(work, col, col));
             mat_add_scaled(mat_row_view(work, row), s, mat_row_view(work, col));
         }
         det *= MAT_AT(work, col, col);
     }
     arena_rewind(arena, mark);
-    return (Scalar)det;
+    return (MatScalar)det;
 }
 
 int mat_inverse(Arena *arena, Matrix out, Matrix m) {
