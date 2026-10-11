@@ -111,5 +111,10 @@ include/sormat/   public headers (matrix.h, arena.h)
 src/              library source
 tests/            unit tests (make test)
 examples/         example programs (make examples)
+LICENSE
 Makefile
 ```
+
+## License
+
+Sormat is released under the MIT License. See [`LICENSE`](LICENSE).
