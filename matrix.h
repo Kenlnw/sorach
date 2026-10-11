@@ -117,10 +117,12 @@ void mat_rand_normal(Matrix out, Scalar mean, Scalar std);
 // ---------------------------------------------------------------------------
 
 // A 1 x cols view of one row of m.
+// (The return matrix uses the SAME memory with m matrix. Please be careful.)
 Matrix mat_row_view(Matrix m, int row);
 
 // A count x cols view of consecutive rows of m, beginning at row start.
 // The range start .. start + count - 1 must lie inside m.
+// (The return matrix uses the SAME memory with m matrix. Please be careful.)
 Matrix mat_rows_view(Matrix m, int start, int count);
 
 // A view of all of m's elements with a different shape.
@@ -138,8 +140,18 @@ void mat_get_col(Matrix out, Matrix m, int col);
 // Copy src into column col of m. src must be m.rows x 1.
 void mat_set_col(Matrix m, int col, Matrix src);
 
+// Copy row of m into out. out must be 1 x m.cols.
+// (The out matrix will not use the same memory with m matrix. Changing out doesn't matter m)
+void mat_get_row(Matrix out, Matrix m, int row);
+
+// Copy src into row of m. src must be 1 x m.cols.
+void mat_set_row(Matrix m, int row, Matrix src);
+
 // Exchange two rows of m. Swapping a row with itself does nothing.
 void mat_swap_rows(Matrix m, int row_a, int row_b);
+
+// Exchange two columns of m. Swapping a column with itself does nothing.
+void mat_swap_cols(Matrix m, int col_a, int col_b);
 
 // Return 1 if a and b have the same number of rows and columns, else 0.
 int mat_same_shape(Matrix a, Matrix b);
@@ -183,7 +195,7 @@ void mat_apply(Matrix out, Matrix a, Scalar (*f)(Scalar));
 
 void mat_scale(Matrix m, Scalar s);                  // m *= s
 void mat_add_scalar(Matrix m, Scalar s);             // m += s
-void mat_add_scaled(Matrix y, Scalar s, Matrix x);   // y += s * x
+void mat_add_scaled(Matrix a, Scalar s, Matrix b);   // a += s * b
 
 // Limit every element to the range low .. high. low must not exceed high.
 void mat_clamp(Matrix m, Scalar low, Scalar high);
@@ -270,7 +282,7 @@ int mat_load(Matrix out, const char *path);
 // ---------------------------------------------------------------------------
 // Square-matrix linear algebra (not needed for neural networks)
 // These use Gaussian elimination with partial pivoting. They need working
-// space, which they take from the scratch arena and release before
+// space, which they take from the arena and release before
 // returning, so the arena is left exactly as it was.
 // ---------------------------------------------------------------------------
 
@@ -279,16 +291,16 @@ Scalar mat_trace(Matrix m);
 
 // Determinant of m. m must be square and is not modified.
 // Returns 0 for a singular matrix.
-Scalar mat_det(Arena *scratch, Matrix m);
+Scalar mat_det(Arena *arena, Matrix m);
 
 // Inverse: out = m^-1. m and out must be square with the same shape, and
 // out must not be m. Returns 1 on success, or 0 if m is singular (has no
 // inverse), in which case out is left unspecified.
-int mat_inverse(Arena *scratch, Matrix out, Matrix m);
+int mat_inverse(Arena *arena, Matrix out, Matrix m);
 
 // Solve A @ x = b for x. A must be n x n; b and x must both be n x k, so
 // several right-hand sides can be solved at once. A and b are not modified.
 // Returns 1 on success, or 0 if A is singular.
-int mat_solve(Arena *scratch, Matrix x, Matrix A, Matrix b);
+int mat_solve(Arena *arena, Matrix x, Matrix A, Matrix b);
 
 #endif

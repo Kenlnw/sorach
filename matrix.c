@@ -19,6 +19,41 @@ static double randn(void) {
     return sqrt(-2.0 * log(u1)) * cos(2.0 * MAT_PI * u2);
 }
 
+static int gauss_jordan(Matrix work, Matrix rhs) {
+    for (int col = 0; col < work.cols; col++) {
+        int pivot_row = col;
+        // Find the row where the largest absolute value is inside
+        // That row will become a pivot row for one column.
+        for (int row = col + 1; row < work.rows; row++) {
+            if (fabs(MAT_AT(work, row, col)) > fabs(MAT_AT(work, pivot_row, col)))
+                pivot_row = row;
+        }
+
+        if (MAT_AT(work, pivot_row, col) == 0) return 0;
+        // We need a pivot row == col (all pivots should be diagnal), for perform a gaussian elimination
+        if (pivot_row != col) {
+            // do a row swap for both
+            mat_swap_rows(work, col, pivot_row);
+            mat_swap_rows(rhs, col, pivot_row);
+        }
+
+        // Scale the pivot row of BOTH by 1/pivot
+        Scalar pivot = MAT_AT(work, col, col);
+        mat_scale(mat_row_view(work, col), 1 / pivot);
+        mat_scale(mat_row_view(rhs, col), 1 / pivot);
+
+        // Do a elimination for BOTH
+        for (int row = 0; row < work.rows; row++) {
+            if (row == col) continue;
+
+            Scalar s = -MAT_AT(work, row, col);
+            mat_add_scaled(mat_row_view(work, row), s, mat_row_view(work, col));
+            mat_add_scaled(mat_row_view(rhs, row), s, mat_row_view(rhs, col));
+        }
+    }
+    return 1;
+}
+
 Matrix mat_new(Arena *arena, int rows, int cols) {
     assert(arena->buff != NULL);
     assert(rows > 0);
@@ -62,6 +97,10 @@ void mat_identity(Matrix out) {
 void mat_from_array(Matrix out, const Scalar *src) {
     assert(out.data != NULL && src != NULL);
     memcpy(out.data, src, (size_t) out.rows * out.cols * sizeof(Scalar));
+}
+
+void mat_seed(unsigned int seed) {
+    srand(seed);
 }
 
 void mat_rand_uniform(Matrix out, Scalar low, Scalar high) {
@@ -116,6 +155,65 @@ Matrix mat_reshape(Matrix m, int rows, int cols) {
     return new_shape;
 }
 
+void mat_get_col(Matrix out, Matrix m, int col) {
+    assert(m.data != NULL && out.data != NULL);
+    assert(col >= 0 && col < m.cols);
+    assert(out.rows == m.rows && out.cols == 1);
+
+    for (int row = 0; row < m.rows; row++)
+        MAT_AT(out, row, 0) = MAT_AT(m, row, col);
+}
+
+void mat_set_col(Matrix m, int col, Matrix src) {
+    assert(m.data != NULL && src.data != NULL);
+    assert(col >= 0 && col < m.cols);
+    assert(src.rows == m.rows && src.cols == 1);
+
+    for (int row = 0; row < m.rows; row++)
+        MAT_AT(m, row, col) = MAT_AT(src, row, 0);
+}
+
+void mat_get_row(Matrix out, Matrix m, int row) {
+    mat_copy(out, mat_row_view(m, row));
+}
+
+void mat_set_row(Matrix m, int row, Matrix src) {
+    mat_copy(mat_row_view(m, row), src);
+}
+
+void mat_swap_rows(Matrix m, int row_a, int row_b) {
+    assert(m.data != NULL);
+    assert(row_a >= 0 && row_a < m.rows);
+    assert(row_b >= 0 && row_b < m.rows);
+
+    if (row_a == row_b) return;
+
+    for (int col = 0; col < m.cols; col++) {
+        Scalar temp = MAT_AT(m, row_a, col);
+        MAT_AT(m, row_a, col) = MAT_AT(m, row_b, col);
+        MAT_AT(m, row_b, col) = temp;
+    }
+}
+
+void mat_swap_cols(Matrix m, int col_a, int col_b) {
+    assert(m.data != NULL);
+    assert(col_a >= 0 && col_a < m.cols);
+    assert(col_b >= 0 && col_b < m.cols);
+
+    if (col_a == col_b) return;
+
+    for (int row = 0; row < m.rows; row++) {
+        Scalar temp = MAT_AT(m, row, col_a);
+        MAT_AT(m, row, col_a) = MAT_AT(m, row, col_b);
+        MAT_AT(m, row, col_b) = temp;
+    }
+}
+
+int mat_same_shape(Matrix a, Matrix b) {
+    assert(a.data != NULL && b.data != NULL);
+    return a.rows == b.rows && a.cols == b.cols;
+}
+
 void mat_mul(Matrix out, Matrix a, Matrix b) {
     assert(a.data != NULL && b.data != NULL && out.data != NULL);
     assert(out.data != a.data && out.data != b.data);
@@ -142,9 +240,31 @@ void mat_transpose(Matrix out, Matrix a) {
             MAT_AT(out, row, col) = MAT_AT(a, col, row);
 }
 
+void mat_transpose_inplace(Matrix m) {
+    assert(m.data != NULL);
+    assert(m.rows == m.cols);
+
+    for (int row = 0; row < m.rows; row++) {
+        for (int col = row + 1; col < m.rows; col++) {
+            Scalar temp = MAT_AT(m, row, col);
+            MAT_AT(m, row, col) = MAT_AT(m, col, row);
+            MAT_AT(m, col, row) = temp;
+        }
+    }
+}
+
+Scalar mat_dot(Matrix a, Matrix b) {
+    assert(a.data != NULL && b.data != NULL);
+    assert(mat_same_shape(a, b));
+
+    Scalar dot = 0;
+    for (int i = 0; i < a.rows * a.cols; i++)
+        dot += a.data[i] * b.data[i];
+    return dot;
+}
+
 void mat_add(Matrix out, Matrix a, Matrix b) {
     assert(a.data != NULL && b.data != NULL && out.data != NULL);
-    assert(out.data != a.data && out.data != b.data);
     assert(a.rows == b.rows && a.cols == b.cols);
     assert(out.rows == a.rows && out.cols == a.cols);
 
@@ -154,7 +274,6 @@ void mat_add(Matrix out, Matrix a, Matrix b) {
 
 void mat_sub(Matrix out, Matrix a, Matrix b) {
     assert(a.data != NULL && b.data != NULL && out.data != NULL);
-    assert(out.data != a.data && out.data != b.data);
     assert(a.rows == b.rows && a.cols == b.cols);
     assert(out.rows == a.rows && out.cols == a.cols);
 
@@ -164,7 +283,6 @@ void mat_sub(Matrix out, Matrix a, Matrix b) {
 
 void mat_hadamard(Matrix out, Matrix a, Matrix b) {
     assert(a.data != NULL && b.data != NULL && out.data != NULL);
-    assert(out.data != a.data && out.data != b.data);
     assert(a.rows == b.rows && a.cols == b.cols);
     assert(out.rows == a.rows && out.cols == a.cols);
 
@@ -174,7 +292,6 @@ void mat_hadamard(Matrix out, Matrix a, Matrix b) {
 
 void mat_div(Matrix out, Matrix a, Matrix b) {
     assert(a.data != NULL && b.data != NULL && out.data != NULL);
-    assert(out.data != a.data && out.data != b.data);
     assert(a.rows == b.rows && a.cols == b.cols);
     assert(out.rows == a.rows && out.cols == a.cols);
 
@@ -184,7 +301,6 @@ void mat_div(Matrix out, Matrix a, Matrix b) {
 
 void mat_apply(Matrix out, Matrix a, Scalar (*func)(Scalar)) {
     assert(a.data != NULL && out.data != NULL && func != NULL);
-    assert(out.data != a.data);
     assert(out.rows == a.rows && out.cols == a.cols);
 
     for (int i = 0; i < a.rows * a.cols; i++)
@@ -213,6 +329,16 @@ void mat_add_scaled(Matrix a, Scalar s, Matrix b) {
         a.data[i] += s * b.data[i];
 }
 
+void mat_clamp(Matrix m, Scalar low, Scalar high) {
+    assert(m.data != NULL);
+    assert(low <= high);
+
+    for (int i = 0; i < m.rows * m.cols; i++) {
+        if (m.data[i] > high) m.data[i] = high;
+        else if (m.data[i] < low) m.data[i] = low;
+    }
+}
+
 void mat_add_vec(Matrix m, Matrix v) {
     assert(m.data != NULL && v.data != NULL);
 
@@ -223,8 +349,8 @@ void mat_add_vec(Matrix m, Matrix v) {
         }
     }
     else if (v.cols == 1 && v.rows == m.rows) {
-        for (int m_col = 0; m_col < m.rows; m_col++) {
-            for (int m_row = 0; m_row < m.cols; m_row++)
+        for (int m_row = 0; m_row < m.rows; m_row++) {
+            for (int m_col = 0; m_col < m.cols; m_col++)
                 MAT_AT(m, m_row, m_col) += MAT_AT(v, m_row, 0);
         }
     }
@@ -241,8 +367,8 @@ void mat_sub_vec(Matrix m, Matrix v) {
         }
     }
     else if (v.cols == 1 && v.rows == m.rows) {
-        for (int m_col = 0; m_col < m.rows; m_col++) {
-            for (int m_row = 0; m_row < m.cols; m_row++)
+        for (int m_row = 0; m_row < m.rows; m_row++) {
+            for (int m_col = 0; m_col < m.cols; m_col++)
                 MAT_AT(m, m_row, m_col) -= MAT_AT(v, m_row, 0);
         }
     }
@@ -259,8 +385,8 @@ void mat_mul_vec(Matrix m, Matrix v) {
         }
     }
     else if (v.cols == 1 && v.rows == m.rows) {
-        for (int m_col = 0; m_col < m.rows; m_col++) {
-            for (int m_row = 0; m_row < m.cols; m_row++)
+        for (int m_row = 0; m_row < m.rows; m_row++) {
+            for (int m_col = 0; m_col < m.cols; m_col++)
                 MAT_AT(m, m_row, m_col) *= MAT_AT(v, m_row, 0);
         }
     }
@@ -277,8 +403,8 @@ void mat_div_vec(Matrix m, Matrix v) {
         }
     }
     else if (v.cols == 1 && v.rows == m.rows) {
-        for (int m_col = 0; m_col < m.rows; m_col++) {
-            for (int m_row = 0; m_row < m.cols; m_row++)
+        for (int m_row = 0; m_row < m.rows; m_row++) {
+            for (int m_col = 0; m_col < m.cols; m_col++)
                 MAT_AT(m, m_row, m_col) /= MAT_AT(v, m_row, 0);
         }
     }
@@ -291,18 +417,18 @@ void mat_sum(Matrix out, Matrix m, Axis axis) {
 
     if (axis == ROW && out.rows == 1 && out.cols == m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
-            Scalar sum = 0;
+            double sum = 0;
             for (int m_row = 0; m_row < m.rows; m_row++)
                 sum += MAT_AT(m, m_row, m_col);
-            MAT_AT(out, 0, m_col) = sum;
+            MAT_AT(out, 0, m_col) = (Scalar)sum;
         }
     }
     else if (axis == COL && out.rows == m.rows && out.cols == 1) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
-            Scalar sum = 0;
+            double sum = 0;
             for (int m_col = 0; m_col < m.cols; m_col++)
                 sum += MAT_AT(m, m_row, m_col);
-            MAT_AT(out, m_row, 0) = sum;
+            MAT_AT(out, m_row, 0) = (Scalar)sum;
         }
     }
     else assert(0 && "mat_sum: out's size must be 1 x cols (ROW) or rows x 1 (COL)");
@@ -314,7 +440,7 @@ void mat_mean(Matrix out, Matrix m, Axis axis) {
 
     if (axis == ROW && out.rows == 1 && out.cols == m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
-            Scalar sum = 0;
+            double sum = 0;
             for (int m_row = 0; m_row < m.rows; m_row++)
                 sum += MAT_AT(m, m_row, m_col);
             MAT_AT(out, 0, m_col) = (Scalar)(sum / m.rows);
@@ -322,7 +448,7 @@ void mat_mean(Matrix out, Matrix m, Axis axis) {
     }
     else if (axis == COL && out.rows == m.rows && out.cols == 1) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
-            Scalar sum = 0;
+            double sum = 0;
             for (int m_col = 0; m_col < m.cols; m_col++)
                 sum += MAT_AT(m, m_row, m_col);
             MAT_AT(out, m_row, 0) = (Scalar)(sum / m.cols);
@@ -433,7 +559,7 @@ Scalar mat_mean_all(Matrix m)  {
     double sum = 0;
     int m_len = m.rows * m.cols;
     for (int i = 0; i < m_len; i++) sum += m.data[i];
-    return (Scalar) sum / m_len;
+    return (Scalar)(sum / m_len);
 }
 
 Scalar mat_max_all(Matrix m) {
@@ -466,20 +592,24 @@ int mat_equal(Matrix a, Matrix b, Scalar epsilon) {
     if (a.rows != b.rows || a.cols != b.cols) return 0;
 
     for (int i = 0; i < a.rows * a.cols; i++)
-        if (fabs(a.data[i] - b.data[i]) >= epsilon) return 0;
+        if (!(fabs(a.data[i] - b.data[i]) < epsilon)) return 0;
     return 1;
 }
 
 void mat_print(Matrix m) {
     assert(m.data != NULL);
 
-    printf("[");
     for (int row = 0; row < m.rows; row++) {
-        printf("[");
+        printf("%s", row == 0 ? "[[" : " [");
         for (int col = 0; col < m.cols; col++)
             printf(" %8.4f", (double)MAT_AT(m, row, col));
         printf("%s\n", row == m.rows - 1 ? " ]]" : " ]");
     }
+}
+
+void mat_print_shape(Matrix m) {
+    assert(m.data != NULL);
+    printf("(%d, %d)\n", m.rows, m.cols);
 }
 
 int mat_save(Matrix m, const char *path) {
@@ -511,7 +641,7 @@ int mat_load(Matrix out, const char *path) {
     FILE *fp = fopen(path, "rb");
 
     if (fp == NULL) {
-        fprintf(stderr, "mat_save: cannot open '%s'\n", path);
+        fprintf(stderr, "mat_load: cannot open '%s'\n", path);
         return 0;
     }
 
@@ -535,7 +665,7 @@ int mat_load(Matrix out, const char *path) {
     else {
         size_t data_len = (size_t)out.rows * out.cols;
         is_completed = fread(out.data, ele_size, data_len, fp) == data_len;
-        if (!is_completed) fprintf(stderr, "mat_save: reading element values failed for '%s'\n", path);
+        if (!is_completed) fprintf(stderr, "mat_load: reading element values failed for '%s'\n", path);
     }
 
     fclose(fp);
@@ -550,4 +680,82 @@ Scalar mat_trace(Matrix m) {
     for (int i = 0; i < m.rows; i++)
         trace += MAT_AT(m, i, i);
     return (Scalar)trace;
+}
+
+Scalar mat_det(Arena *arena, Matrix m) {
+    assert(m.data != NULL);
+    assert(m.rows == m.cols);
+
+    size_t mark = arena_mark(arena);
+
+    Matrix work = mat_new(arena, m.rows, m.cols);
+    mat_copy(work, m);
+
+    double det = 1.0;
+    for (int col = 0; col < work.cols; col++) {
+        int pivot_row = col;
+        // Find the row where the largest absolute value is inside
+        // That row will become a pivot row for one column.
+        for (int row = col + 1; row < work.rows; row++) {
+            if (fabs(MAT_AT(work, row, col)) > fabs(MAT_AT(work, pivot_row, col)))
+                pivot_row = row;
+        }
+
+        if (MAT_AT(work, pivot_row, col) == 0) {
+            det = 0.0;  // That's mean this matrix is singular
+            break;
+        }
+
+        // We need a pivot row == col (all pivots should be diagnal), for perform a gaussian elimination
+        if (pivot_row != col) {
+            mat_swap_rows(work, col, pivot_row);
+            det = -det; // each row swap flips the sign of the determinant
+        }
+
+        for (int row = col + 1; row < work.rows; row++) {
+            Scalar s = -(MAT_AT(work, row, col) / MAT_AT(work, col, col));
+            mat_add_scaled(mat_row_view(work, row), s, mat_row_view(work, col));
+        }
+        det *= MAT_AT(work, col, col);
+    }
+    arena_rewind(arena, mark);
+    return (Scalar)det;
+}
+
+int mat_inverse(Arena *arena, Matrix out, Matrix m) {
+    assert(m.data != NULL && out.data != NULL);
+    assert(m.rows == m.cols);
+    assert(mat_same_shape(m, out));
+    assert(out.data != m.data);
+
+    size_t mark = arena_mark(arena);
+
+    Matrix work = mat_new(arena, m.rows, m.cols);
+    mat_copy(work, m);
+    mat_identity(out);
+
+    int is_completed = gauss_jordan(work, out);
+
+    arena_rewind(arena, mark);
+    return is_completed;
+}
+
+int mat_solve(Arena *arena, Matrix x, Matrix A, Matrix b) {
+    assert(x.data != NULL && A.data != NULL && b.data != NULL);
+    assert(A.rows == A.cols);
+    assert(A.rows == b.rows);
+    assert(mat_same_shape(b, x));
+    assert(x.data != A.data && x.data != b.data);
+
+    size_t mark = arena_mark(arena);
+
+    Matrix work = mat_new(arena, A.rows, A.cols);
+    mat_copy(work, A);
+
+    mat_copy(x, b);
+
+    int is_completed = gauss_jordan(work, x);
+
+    arena_rewind(arena, mark);
+    return is_completed;
 }
