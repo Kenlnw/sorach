@@ -1,6 +1,6 @@
 # Sormat
 
-Sora's matrix library: a small matrix library in C99, built on an arena allocator.
+Sormat library: a small matrix library in C99, built on an arena allocator.
 
 - Row-major `Matrix` of `float` (or `double` with `-DMAT_USE_DOUBLE`)
 - No hidden allocation: only `mat_new` takes memory from an arena, and every
