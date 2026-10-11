@@ -1,4 +1,4 @@
-#include <sora/matrix.h>
+#include <sormat/matrix.h>
 #include "test.h"
 
 #define EPS ((MatScalar)1e-5)   //Epsilon

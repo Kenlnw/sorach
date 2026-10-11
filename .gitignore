@@ -1,0 +1,34 @@
+# Build output (see Makefile)
+build/
+build_double/
+
+# Compiled files
+*.o
+*.obj
+*.d
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+
+# Debug files
+*.pdb
+*.ilk
+*.dSYM/
+
+# Matrices written by mat_save
+*.bin
+
+# Editors: keep the shared VS Code C/C++ config, ignore personal settings
+.vscode/*
+!.vscode/c_cpp_properties.json
+.idea/
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,5 +1,5 @@
-#ifndef SORA_ARENA_H
-#define SORA_ARENA_H
+#ifndef SORMAT_ARENA_H
+#define SORMAT_ARENA_H
 
 #include <stddef.h>
 

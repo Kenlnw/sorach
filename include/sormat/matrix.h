@@ -1,5 +1,5 @@
-#ifndef SORA_MATRIX_H
-#define SORA_MATRIX_H
+#ifndef SORMAT_MATRIX_H
+#define SORMAT_MATRIX_H
 
 #include <stddef.h>
 #include "arena.h"

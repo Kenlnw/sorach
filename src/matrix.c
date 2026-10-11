@@ -1,4 +1,4 @@
-#include <sora/matrix.h>
+#include <sormat/matrix.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

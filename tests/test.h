@@ -1,5 +1,5 @@
-#ifndef SORA_TEST_H
-#define SORA_TEST_H
+#ifndef SORMAT_TEST_H
+#define SORMAT_TEST_H
 
 #include <stdio.h>
 
