@@ -253,6 +253,15 @@ void mat_transpose_inplace(Matrix m) {
     }
 }
 
+void mat_diag(Matrix out, Matrix v) {
+    assert(out.data != NULL && v.data != NULL);
+    assert((v.cols == 1 && v.rows == out.rows) || (v.rows == 1 && v.cols == out.rows));
+    assert(out.rows == out.cols);
+
+    mat_fillall(out, 0.0);
+    for (int i = 0; i < v.rows; i++) MAT_AT(out, i, i) = v.data[i];
+}
+
 MatScalar mat_dot(Matrix a, Matrix b) {
     assert(a.data != NULL && b.data != NULL);
     assert(mat_same_shape(a, b));

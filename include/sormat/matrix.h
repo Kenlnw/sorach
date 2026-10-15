@@ -172,6 +172,9 @@ void mat_transpose(Matrix out, Matrix a);
 // Transpose a square matrix in place.
 void mat_transpose_inplace(Matrix m);
 
+// Build a diagonal matrix from a row or column vector
+void mat_diag(Matrix out, Matrix v);
+
 // Sum of the products of corresponding elements. a and b must have the same
 // shape. For two vectors this is the dot product.
 MatScalar mat_dot(Matrix a, Matrix b);
