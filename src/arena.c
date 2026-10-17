@@ -1,56 +1,65 @@
-#include <sormat/arena.h>
+#include <sorach/arena.h>
 #include <string.h>
 #include <stdlib.h>
-#include <assert.h>
+#include <stddef.h>
+#include "check.h"
 
-Arena arena_create(size_t buff_size) {
-    Arena arena = {
+SorArena sor_arena_create(size_t buff_size) {
+    SorArena arena = {
         .buff = malloc(buff_size),
         .buff_size = buff_size,
         .cur_offset = 0
     };
 
-    assert(arena.buff != NULL);
+    SOR_CHECK(arena.buff != NULL);
     return arena;
 }
 
-void *arena_alloc(Arena *arena, size_t size, int alignment) {
-    assert(alignment > 0);  // check that alignment > 0 or not. If not, stop program
-    size_t offset = arena->cur_offset;
-    size_t rem = offset % alignment;
+void *sor_arena_alloc(SorArena *arena, size_t size, int alignment) {
+    SOR_CHECK(arena != NULL && arena->buff != NULL);
+    // A power of two has exactly one bit set, so x & (x - 1) is 0.
+    SOR_CHECK(alignment > 0 && (alignment & (alignment - 1)) == 0);
 
-    if (rem > 0) offset += alignment - rem;
+    // Align the address itself, not just the offset: malloc only guarantees
+    // its own alignment for the start of the buffer (often 16 bytes, 8 on
+    // 32-bit Windows), so aligning the offset alone would not give 32 or 64.
+    size_t    mask = (size_t)alignment - 1;
+    uintptr_t next = (uintptr_t)(arena->buff + arena->cur_offset);
+    size_t    pad  = (size_t)((alignment - (next & mask)) & mask);
 
-    // check that the allocate memory will be not overflow
-    assert(offset + size <= arena->buff_size);
+    // Compare by subtracting, so a huge size cannot wrap around and pass.
+    size_t free_bytes = arena->buff_size - arena->cur_offset;
+    SOR_CHECK(pad <= free_bytes && size <= free_bytes - pad);   // arena too small
 
-    // allocate the memory in the buffer (*mem at the starting point of allocated memory)
-    void *mem = arena->buff + offset;
-    arena->cur_offset = offset + size;
-
+    void *mem = arena->buff + arena->cur_offset + pad;
+    arena->cur_offset += pad + size;
     return mem;
 }
 
-void *arena_alloc_zero(Arena *arena, size_t size, int alignment) {
-    void *mem = arena_alloc(arena, size, alignment);
+void *sor_arena_alloc_zero(SorArena *arena, size_t size, int alignment) {
+    void *mem = sor_arena_alloc(arena, size, alignment);
     memset(mem, 0, size);
     return mem;
 }
 
-void arena_reset(Arena *arena) {
+void sor_arena_reset(SorArena *arena) {
+    SOR_CHECK(arena != NULL);
     arena->cur_offset = 0;
 }
 
-size_t arena_mark(Arena *arena) {
+size_t sor_arena_mark(SorArena *arena) {
+    SOR_CHECK(arena != NULL);
     return arena->cur_offset;
 }
 
-void arena_rewind(Arena *arena, size_t mark) {
-    assert(mark <= arena->cur_offset);
+void sor_arena_rewind(SorArena *arena, size_t mark) {
+    SOR_CHECK(arena != NULL);
+    SOR_CHECK(mark <= arena->cur_offset);
     arena->cur_offset = mark;
 }
 
-void arena_destroy(Arena *arena) {
+void sor_arena_destroy(SorArena *arena) {
+    SOR_CHECK(arena != NULL);
     free(arena->buff);
     arena->buff = NULL;
     arena->buff_size = 0;

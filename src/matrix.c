@@ -1,9 +1,10 @@
-#include <sormat/matrix.h>
+#include <sorach/matrix.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
+#include <stddef.h>
 #include <math.h>
+#include "check.h"
 
 #define MAT_PI 3.14159265358979323846
 
@@ -19,109 +20,109 @@ static double randn(void) {
     return sqrt(-2.0 * log(u1)) * cos(2.0 * MAT_PI * u2);
 }
 
-static int gauss_jordan(Matrix work, Matrix rhs) {
+static int gauss_jordan(SorMat work, SorMat rhs) {
     for (int col = 0; col < work.cols; col++) {
         int pivot_row = col;
         // Find the row where the largest absolute value is inside
         // That row will become a pivot row for one column.
         for (int row = col + 1; row < work.rows; row++) {
-            if (fabs(MAT_AT(work, row, col)) > fabs(MAT_AT(work, pivot_row, col)))
+            if (fabs(SOR_MAT_AT(work, row, col)) > fabs(SOR_MAT_AT(work, pivot_row, col)))
                 pivot_row = row;
         }
 
-        if (MAT_AT(work, pivot_row, col) == 0) return 0;
+        if (SOR_MAT_AT(work, pivot_row, col) == 0) return 0;
         // We need a pivot row == col (all pivots should be diagnal), for perform a gaussian elimination
         if (pivot_row != col) {
             // do a row swap for both
-            mat_swap_rows(work, col, pivot_row);
-            mat_swap_rows(rhs, col, pivot_row);
+            sor_mat_swap_rows(work, col, pivot_row);
+            sor_mat_swap_rows(rhs, col, pivot_row);
         }
 
         // Scale the pivot row of BOTH by 1/pivot
-        MatScalar pivot = MAT_AT(work, col, col);
-        mat_scale(mat_row_view(work, col), 1 / pivot);
-        mat_scale(mat_row_view(rhs, col), 1 / pivot);
+        SorScalar pivot = SOR_MAT_AT(work, col, col);
+        sor_mat_scale(sor_mat_row_view(work, col), 1 / pivot);
+        sor_mat_scale(sor_mat_row_view(rhs, col), 1 / pivot);
 
         // Do a elimination for BOTH
         for (int row = 0; row < work.rows; row++) {
             if (row == col) continue;
 
-            MatScalar s = -MAT_AT(work, row, col);
-            mat_add_scaled(mat_row_view(work, row), s, mat_row_view(work, col));
-            mat_add_scaled(mat_row_view(rhs, row), s, mat_row_view(rhs, col));
+            SorScalar s = -SOR_MAT_AT(work, row, col);
+            sor_mat_add_scaled(sor_mat_row_view(work, row), s, sor_mat_row_view(work, col));
+            sor_mat_add_scaled(sor_mat_row_view(rhs, row), s, sor_mat_row_view(rhs, col));
         }
     }
     return 1;
 }
 
-Matrix mat_new(Arena *arena, int rows, int cols) {
-    assert(arena->buff != NULL);
-    assert(rows > 0);
-    assert(cols > 0);
+SorMat sor_mat_new(SorArena *arena, int rows, int cols) {
+    SOR_CHECK(arena->buff != NULL);
+    SOR_CHECK(rows > 0);
+    SOR_CHECK(cols > 0);
 
-    size_t data_size = (size_t) rows * cols * sizeof(MatScalar);
-    Matrix m = {
+    size_t data_size = (size_t) rows * cols * sizeof(SorScalar);
+    SorMat m = {
         .rows = rows,
         .cols = cols,
-        .data = arena_alloc_zero(arena, data_size, ARENA_DEFAULT_ALIGN)
+        .data = sor_arena_alloc_zero(arena, data_size, SOR_ARENA_DEFAULT_ALIGN)
     };
 
-    assert(m.data != NULL);
+    SOR_CHECK(m.data != NULL);
     return m;
 }
 
-void mat_fillall(Matrix m, MatScalar value) {
-    assert(m.data != NULL);
+void sor_mat_fillall(SorMat m, SorScalar value) {
+    SOR_CHECK(m.data != NULL);
     for (int i = 0; i < (m.rows * m.cols); i++)
         m.data[i] = value;
 }
 
-void mat_copy(Matrix dst, Matrix src) {
-    assert(src.data != NULL && dst.data != NULL);
-    assert(dst.rows == src.rows);
-    assert(dst.cols == src.cols);
+void sor_mat_copy(SorMat dst, SorMat src) {
+    SOR_CHECK(src.data != NULL && dst.data != NULL);
+    SOR_CHECK(dst.rows == src.rows);
+    SOR_CHECK(dst.cols == src.cols);
 
     // copy all elements in src.data into dst.data
-    memcpy(dst.data, src.data, (size_t) src.rows * src.cols * sizeof(MatScalar));
+    memcpy(dst.data, src.data, (size_t) src.rows * src.cols * sizeof(SorScalar));
 }
 
-void mat_identity(Matrix out) {
-    assert(out.data != NULL);
-    assert(out.rows == out.cols);
+void sor_mat_identity(SorMat out) {
+    SOR_CHECK(out.data != NULL);
+    SOR_CHECK(out.rows == out.cols);
 
-    mat_fillall(out, 0.0f);
+    sor_mat_fillall(out, 0.0f);
     for (int i = 0; i < out.rows; i++)
-        MAT_AT(out, i, i) = 1.0f;
+        SOR_MAT_AT(out, i, i) = 1.0f;
 }
 
-void mat_from_array(Matrix out, const MatScalar *src) {
-    assert(out.data != NULL && src != NULL);
-    memcpy(out.data, src, (size_t) out.rows * out.cols * sizeof(MatScalar));
+void sor_mat_from_array(SorMat out, const SorScalar *src) {
+    SOR_CHECK(out.data != NULL && src != NULL);
+    memcpy(out.data, src, (size_t) out.rows * out.cols * sizeof(SorScalar));
 }
 
-void mat_seed(unsigned int seed) {
+void sor_mat_seed(unsigned int seed) {
     srand(seed);
 }
 
-void mat_rand_uniform(Matrix out, MatScalar low, MatScalar high) {
-    assert(out.data != NULL && low < high);
+void sor_mat_rand_uniform(SorMat out, SorScalar low, SorScalar high) {
+    SOR_CHECK(out.data != NULL && low < high);
 
     for (int i = 0; i < out.rows * out.cols; i++)
-        out.data[i] = (MatScalar)(low + (high - low) * rand01());
+        out.data[i] = (SorScalar)(low + (high - low) * rand01());
 }
 
-void mat_rand_normal(Matrix out, MatScalar mean, MatScalar std) {
-    assert(out.data != NULL && std >= 0);
+void sor_mat_rand_normal(SorMat out, SorScalar mean, SorScalar std) {
+    SOR_CHECK(out.data != NULL && std >= 0);
 
     for (int i = 0; i < out.rows * out.cols; i++)
-        out.data[i] = (MatScalar)(mean + std * randn());
+        out.data[i] = (SorScalar)(mean + std * randn());
 }
 
-Matrix mat_row_view(Matrix m, int row) {
-    assert(m.data != NULL);
-    assert(row >= 0 && row < m.rows);
+SorMat sor_mat_row_view(SorMat m, int row) {
+    SOR_CHECK(m.data != NULL);
+    SOR_CHECK(row >= 0 && row < m.rows);
 
-    Matrix m_view = {
+    SorMat m_view = {
         .rows = 1,
         .cols = m.cols,
         .data = m.data + (row * m.cols)
@@ -129,12 +130,12 @@ Matrix mat_row_view(Matrix m, int row) {
     return m_view;
 }
 
-Matrix mat_rows_view(Matrix m, int start, int count) {
-    assert(m.data != NULL);
-    assert(start >= 0 && start < m.rows);
-    assert(count > 0 && start + count <= m.rows);
+SorMat sor_mat_rows_view(SorMat m, int start, int count) {
+    SOR_CHECK(m.data != NULL);
+    SOR_CHECK(start >= 0 && start < m.rows);
+    SOR_CHECK(count > 0 && start + count <= m.rows);
 
-    Matrix m_view = {
+    SorMat m_view = {
         .rows = count,
         .cols = m.cols,
         .data = m.data + (start * m.cols)
@@ -142,12 +143,12 @@ Matrix mat_rows_view(Matrix m, int start, int count) {
     return m_view;
 }
 
-Matrix mat_reshape(Matrix m, int rows, int cols) {
-    assert(m.data != NULL);
-    assert(rows > 0 && cols > 0);
-    assert(rows * cols == m.rows * m.cols);
+SorMat sor_mat_reshape(SorMat m, int rows, int cols) {
+    SOR_CHECK(m.data != NULL);
+    SOR_CHECK(rows > 0 && cols > 0);
+    SOR_CHECK(rows * cols == m.rows * m.cols);
 
-    Matrix new_shape = {
+    SorMat new_shape = {
         .rows = rows,
         .cols = cols,
         .data = m.data
@@ -155,192 +156,208 @@ Matrix mat_reshape(Matrix m, int rows, int cols) {
     return new_shape;
 }
 
-void mat_get_col(Matrix out, Matrix m, int col) {
-    assert(m.data != NULL && out.data != NULL);
-    assert(col >= 0 && col < m.cols);
-    assert(out.rows == m.rows && out.cols == 1);
+void sor_mat_get_col(SorMat out, SorMat m, int col) {
+    SOR_CHECK(m.data != NULL && out.data != NULL);
+    SOR_CHECK(col >= 0 && col < m.cols);
+    SOR_CHECK(out.rows == m.rows && out.cols == 1);
 
     for (int row = 0; row < m.rows; row++)
-        MAT_AT(out, row, 0) = MAT_AT(m, row, col);
+        SOR_MAT_AT(out, row, 0) = SOR_MAT_AT(m, row, col);
 }
 
-void mat_set_col(Matrix m, int col, Matrix src) {
-    assert(m.data != NULL && src.data != NULL);
-    assert(col >= 0 && col < m.cols);
-    assert(src.rows == m.rows && src.cols == 1);
+void sor_mat_set_col(SorMat m, int col, SorMat src) {
+    SOR_CHECK(m.data != NULL && src.data != NULL);
+    SOR_CHECK(col >= 0 && col < m.cols);
+    SOR_CHECK(src.rows == m.rows && src.cols == 1);
 
     for (int row = 0; row < m.rows; row++)
-        MAT_AT(m, row, col) = MAT_AT(src, row, 0);
+        SOR_MAT_AT(m, row, col) = SOR_MAT_AT(src, row, 0);
 }
 
-void mat_get_row(Matrix out, Matrix m, int row) {
-    mat_copy(out, mat_row_view(m, row));
+void sor_mat_get_row(SorMat out, SorMat m, int row) {
+    sor_mat_copy(out, sor_mat_row_view(m, row));
 }
 
-void mat_set_row(Matrix m, int row, Matrix src) {
-    mat_copy(mat_row_view(m, row), src);
+void sor_mat_set_row(SorMat m, int row, SorMat src) {
+    sor_mat_copy(sor_mat_row_view(m, row), src);
 }
 
-void mat_swap_rows(Matrix m, int row_a, int row_b) {
-    assert(m.data != NULL);
-    assert(row_a >= 0 && row_a < m.rows);
-    assert(row_b >= 0 && row_b < m.rows);
+void sor_mat_swap_rows(SorMat m, int row_a, int row_b) {
+    SOR_CHECK(m.data != NULL);
+    SOR_CHECK(row_a >= 0 && row_a < m.rows);
+    SOR_CHECK(row_b >= 0 && row_b < m.rows);
 
     if (row_a == row_b) return;
 
     for (int col = 0; col < m.cols; col++) {
-        MatScalar temp = MAT_AT(m, row_a, col);
-        MAT_AT(m, row_a, col) = MAT_AT(m, row_b, col);
-        MAT_AT(m, row_b, col) = temp;
+        SorScalar temp = SOR_MAT_AT(m, row_a, col);
+        SOR_MAT_AT(m, row_a, col) = SOR_MAT_AT(m, row_b, col);
+        SOR_MAT_AT(m, row_b, col) = temp;
     }
 }
 
-void mat_swap_cols(Matrix m, int col_a, int col_b) {
-    assert(m.data != NULL);
-    assert(col_a >= 0 && col_a < m.cols);
-    assert(col_b >= 0 && col_b < m.cols);
+void sor_mat_swap_cols(SorMat m, int col_a, int col_b) {
+    SOR_CHECK(m.data != NULL);
+    SOR_CHECK(col_a >= 0 && col_a < m.cols);
+    SOR_CHECK(col_b >= 0 && col_b < m.cols);
 
     if (col_a == col_b) return;
 
     for (int row = 0; row < m.rows; row++) {
-        MatScalar temp = MAT_AT(m, row, col_a);
-        MAT_AT(m, row, col_a) = MAT_AT(m, row, col_b);
-        MAT_AT(m, row, col_b) = temp;
+        SorScalar temp = SOR_MAT_AT(m, row, col_a);
+        SOR_MAT_AT(m, row, col_a) = SOR_MAT_AT(m, row, col_b);
+        SOR_MAT_AT(m, row, col_b) = temp;
     }
 }
 
-int mat_same_shape(Matrix a, Matrix b) {
-    assert(a.data != NULL && b.data != NULL);
+int sor_mat_same_shape(SorMat a, SorMat b) {
+    SOR_CHECK(a.data != NULL && b.data != NULL);
     return a.rows == b.rows && a.cols == b.cols;
 }
 
-void mat_mul(Matrix out, Matrix a, Matrix b) {
-    assert(a.data != NULL && b.data != NULL && out.data != NULL);
-    assert(out.data != a.data && out.data != b.data);
-    assert(a.cols == b.rows);
-    assert(out.rows == a.rows && out.cols == b.cols);
+void sor_mat_mul(SorMat out, SorMat a, SorMat b) {
+    SOR_CHECK(a.data != NULL && b.data != NULL && out.data != NULL);
+    SOR_CHECK(out.data != a.data && out.data != b.data);
+    SOR_CHECK(a.cols == b.rows);
+    SOR_CHECK(out.rows == a.rows && out.cols == b.cols);
 
+    sor_mat_fillall(out, 0.0);
     for (int a_row = 0; a_row < a.rows; a_row++) {
-        for (int b_col = 0; b_col < b.cols; b_col++) {
-            MatScalar sum = 0;
-            for (int a_col = 0; a_col < a.cols; a_col++)
-                sum += MAT_AT(a, a_row, a_col) * MAT_AT(b, a_col, b_col);
-            MAT_AT(out, a_row, b_col) = sum;
+        for (int a_col = 0; a_col < a.cols; a_col++) {
+            SorScalar a_ij = SOR_MAT_AT(a, a_row, a_col);
+            for (int b_col = 0; b_col < b.cols; b_col++)
+                SOR_MAT_AT(out, a_row, b_col) += a_ij * SOR_MAT_AT(b, a_col, b_col);
         }
     }
 }
 
-void mat_transpose(Matrix out, Matrix a) {
-    assert(a.data != NULL && out.data != NULL);
-    assert(out.data != a.data);
-    assert(out.rows == a.cols && out.cols == a.rows);
+void sor_mat_mul_tp(SorMat out, SorMat a, SorMat b) {
+    SOR_CHECK(a.data != NULL && b.data != NULL && out.data != NULL);
+    SOR_CHECK(out.data != a.data && out.data != b.data);
+    SOR_CHECK(a.rows == b.rows);
+    SOR_CHECK(out.rows == a.cols && out.cols == b.cols);
+
+    sor_mat_fillall(out, 0.0);
+    for (int a_row = 0; a_row < a.rows; a_row++) {
+        for (int a_col = 0; a_col < a.cols; a_col++) {
+            SorScalar a_ij = SOR_MAT_AT(a, a_row, a_col);
+            for (int b_col = 0; b_col < b.cols; b_col++)
+                SOR_MAT_AT(out, a_col, b_col) += a_ij * SOR_MAT_AT(b, a_row, b_col);
+        }
+    }
+}
+
+void sor_mat_transpose(SorMat out, SorMat a) {
+    SOR_CHECK(a.data != NULL && out.data != NULL);
+    SOR_CHECK(out.data != a.data);
+    SOR_CHECK(out.rows == a.cols && out.cols == a.rows);
 
     for (int row = 0; row < out.rows; row++)
         for (int col = 0; col < out.cols; col++)
-            MAT_AT(out, row, col) = MAT_AT(a, col, row);
+            SOR_MAT_AT(out, row, col) = SOR_MAT_AT(a, col, row);
 }
 
-void mat_transpose_inplace(Matrix m) {
-    assert(m.data != NULL);
-    assert(m.rows == m.cols);
+void sor_mat_transpose_inplace(SorMat m) {
+    SOR_CHECK(m.data != NULL);
+    SOR_CHECK(m.rows == m.cols);
 
     for (int row = 0; row < m.rows; row++) {
         for (int col = row + 1; col < m.rows; col++) {
-            MatScalar temp = MAT_AT(m, row, col);
-            MAT_AT(m, row, col) = MAT_AT(m, col, row);
-            MAT_AT(m, col, row) = temp;
+            SorScalar temp = SOR_MAT_AT(m, row, col);
+            SOR_MAT_AT(m, row, col) = SOR_MAT_AT(m, col, row);
+            SOR_MAT_AT(m, col, row) = temp;
         }
     }
 }
 
-void mat_diag(Matrix out, Matrix v) {
-    assert(out.data != NULL && v.data != NULL);
-    assert((v.cols == 1 && v.rows == out.rows) || (v.rows == 1 && v.cols == out.rows));
-    assert(out.rows == out.cols);
+void sor_mat_diag(SorMat out, SorMat v) {
+    SOR_CHECK(out.data != NULL && v.data != NULL);
+    SOR_CHECK((v.cols == 1 && v.rows == out.rows) || (v.rows == 1 && v.cols == out.rows));
+    SOR_CHECK(out.rows == out.cols);
 
-    mat_fillall(out, 0.0);
-    for (int i = 0; i < v.rows; i++) MAT_AT(out, i, i) = v.data[i];
+    sor_mat_fillall(out, 0.0);
+    for (int i = 0; i < v.rows; i++) SOR_MAT_AT(out, i, i) = v.data[i];
 }
 
-MatScalar mat_dot(Matrix a, Matrix b) {
-    assert(a.data != NULL && b.data != NULL);
-    assert(mat_same_shape(a, b));
+SorScalar sor_mat_dot(SorMat a, SorMat b) {
+    SOR_CHECK(a.data != NULL && b.data != NULL);
+    SOR_CHECK(sor_mat_same_shape(a, b));
 
-    MatScalar dot = 0;
+    SorScalar dot = 0;
     for (int i = 0; i < a.rows * a.cols; i++)
         dot += a.data[i] * b.data[i];
     return dot;
 }
 
-void mat_add(Matrix out, Matrix a, Matrix b) {
-    assert(a.data != NULL && b.data != NULL && out.data != NULL);
-    assert(a.rows == b.rows && a.cols == b.cols);
-    assert(out.rows == a.rows && out.cols == a.cols);
+void sor_mat_add(SorMat out, SorMat a, SorMat b) {
+    SOR_CHECK(a.data != NULL && b.data != NULL && out.data != NULL);
+    SOR_CHECK(a.rows == b.rows && a.cols == b.cols);
+    SOR_CHECK(out.rows == a.rows && out.cols == a.cols);
 
     for (int i = 0; i < a.rows * a.cols; i++)
         out.data[i] = a.data[i] + b.data[i];
 }
 
-void mat_sub(Matrix out, Matrix a, Matrix b) {
-    assert(a.data != NULL && b.data != NULL && out.data != NULL);
-    assert(a.rows == b.rows && a.cols == b.cols);
-    assert(out.rows == a.rows && out.cols == a.cols);
+void sor_mat_sub(SorMat out, SorMat a, SorMat b) {
+    SOR_CHECK(a.data != NULL && b.data != NULL && out.data != NULL);
+    SOR_CHECK(a.rows == b.rows && a.cols == b.cols);
+    SOR_CHECK(out.rows == a.rows && out.cols == a.cols);
 
     for (int i = 0; i < a.rows * a.cols; i++)
         out.data[i] = a.data[i] - b.data[i];
 }
 
-void mat_hadamard(Matrix out, Matrix a, Matrix b) {
-    assert(a.data != NULL && b.data != NULL && out.data != NULL);
-    assert(a.rows == b.rows && a.cols == b.cols);
-    assert(out.rows == a.rows && out.cols == a.cols);
+void sor_mat_hadamard(SorMat out, SorMat a, SorMat b) {
+    SOR_CHECK(a.data != NULL && b.data != NULL && out.data != NULL);
+    SOR_CHECK(a.rows == b.rows && a.cols == b.cols);
+    SOR_CHECK(out.rows == a.rows && out.cols == a.cols);
 
     for (int i = 0; i < a.rows * a.cols; i++)
         out.data[i] = a.data[i] * b.data[i];
 }
 
-void mat_div(Matrix out, Matrix a, Matrix b) {
-    assert(a.data != NULL && b.data != NULL && out.data != NULL);
-    assert(a.rows == b.rows && a.cols == b.cols);
-    assert(out.rows == a.rows && out.cols == a.cols);
+void sor_mat_div(SorMat out, SorMat a, SorMat b) {
+    SOR_CHECK(a.data != NULL && b.data != NULL && out.data != NULL);
+    SOR_CHECK(a.rows == b.rows && a.cols == b.cols);
+    SOR_CHECK(out.rows == a.rows && out.cols == a.cols);
 
     for (int i = 0; i < a.rows * a.cols; i++)
         out.data[i] = a.data[i] / b.data[i];
 }
 
-void mat_apply(Matrix out, Matrix a, MatScalar (*func)(MatScalar)) {
-    assert(a.data != NULL && out.data != NULL && func != NULL);
-    assert(out.rows == a.rows && out.cols == a.cols);
+void sor_mat_apply(SorMat out, SorMat a, SorScalar (*func)(SorScalar)) {
+    SOR_CHECK(a.data != NULL && out.data != NULL && func != NULL);
+    SOR_CHECK(out.rows == a.rows && out.cols == a.cols);
 
     for (int i = 0; i < a.rows * a.cols; i++)
         out.data[i] = func(a.data[i]);
 }
 
-void mat_scale(Matrix m, MatScalar s) {
-    assert(m.data != NULL);
+void sor_mat_scale(SorMat m, SorScalar s) {
+    SOR_CHECK(m.data != NULL);
 
     for (int i = 0; i < m.rows * m.cols; i++)
         m.data[i] *= s;
 }
 
-void mat_add_scalar(Matrix m, MatScalar s) {
-    assert(m.data != NULL);
+void sor_mat_add_scalar(SorMat m, SorScalar s) {
+    SOR_CHECK(m.data != NULL);
 
     for (int i = 0; i < m.rows * m.cols; i++)
         m.data[i] += s;
 }
 
-void mat_add_scaled(Matrix a, MatScalar s, Matrix b) {
-    assert(a.data != NULL && b.data != NULL);
-    assert(a.rows == b.rows && a.cols == b.cols);
+void sor_mat_add_scaled(SorMat a, SorScalar s, SorMat b) {
+    SOR_CHECK(a.data != NULL && b.data != NULL);
+    SOR_CHECK(a.rows == b.rows && a.cols == b.cols);
 
     for (int i = 0; i < a.rows * a.cols; i++)
         a.data[i] += s * b.data[i];
 }
 
-void mat_clamp(Matrix m, MatScalar low, MatScalar high) {
-    assert(m.data != NULL);
-    assert(low <= high);
+void sor_mat_clamp(SorMat m, SorScalar low, SorScalar high) {
+    SOR_CHECK(m.data != NULL);
+    SOR_CHECK(low <= high);
 
     for (int i = 0; i < m.rows * m.cols; i++) {
         if (m.data[i] > high) m.data[i] = high;
@@ -348,256 +365,293 @@ void mat_clamp(Matrix m, MatScalar low, MatScalar high) {
     }
 }
 
-void mat_add_vec(Matrix m, Matrix v) {
-    assert(m.data != NULL && v.data != NULL);
+void sor_mat_add_vec(SorMat m, SorMat v) {
+    SOR_CHECK(m.data != NULL && v.data != NULL);
 
     if (v.rows == 1 && v.cols == m.cols) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             for (int m_col = 0; m_col < m.cols; m_col++)
-                MAT_AT(m, m_row, m_col) += MAT_AT(v, 0, m_col);
+                SOR_MAT_AT(m, m_row, m_col) += SOR_MAT_AT(v, 0, m_col);
         }
     }
     else if (v.cols == 1 && v.rows == m.rows) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             for (int m_col = 0; m_col < m.cols; m_col++)
-                MAT_AT(m, m_row, m_col) += MAT_AT(v, m_row, 0);
+                SOR_MAT_AT(m, m_row, m_col) += SOR_MAT_AT(v, m_row, 0);
         }
     }
-    else assert(0 && "mat_add_vec: v's size must be 1 x cols or rows x 1");
+    else SOR_CHECK(0 && "sor_mat_add_vec: v's size must be 1 x cols or rows x 1");
 }
 
-void mat_sub_vec(Matrix m, Matrix v) {
-    assert(m.data != NULL && v.data != NULL);
+void sor_mat_sub_vec(SorMat m, SorMat v) {
+    SOR_CHECK(m.data != NULL && v.data != NULL);
 
     if (v.rows == 1 && v.cols == m.cols) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             for (int m_col = 0; m_col < m.cols; m_col++)
-                MAT_AT(m, m_row, m_col) -= MAT_AT(v, 0, m_col);
+                SOR_MAT_AT(m, m_row, m_col) -= SOR_MAT_AT(v, 0, m_col);
         }
     }
     else if (v.cols == 1 && v.rows == m.rows) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             for (int m_col = 0; m_col < m.cols; m_col++)
-                MAT_AT(m, m_row, m_col) -= MAT_AT(v, m_row, 0);
+                SOR_MAT_AT(m, m_row, m_col) -= SOR_MAT_AT(v, m_row, 0);
         }
     }
-    else assert(0 && "mat_sub_vec: v's size must be 1 x cols or rows x 1");
+    else SOR_CHECK(0 && "sor_mat_sub_vec: v's size must be 1 x cols or rows x 1");
 }
 
-void mat_mul_vec(Matrix m, Matrix v) {
-    assert(m.data != NULL && v.data != NULL);
+void sor_mat_mul_vec(SorMat m, SorMat v) {
+    SOR_CHECK(m.data != NULL && v.data != NULL);
 
     if (v.rows == 1 && v.cols == m.cols) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             for (int m_col = 0; m_col < m.cols; m_col++)
-                MAT_AT(m, m_row, m_col) *= MAT_AT(v, 0, m_col);
+                SOR_MAT_AT(m, m_row, m_col) *= SOR_MAT_AT(v, 0, m_col);
         }
     }
     else if (v.cols == 1 && v.rows == m.rows) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             for (int m_col = 0; m_col < m.cols; m_col++)
-                MAT_AT(m, m_row, m_col) *= MAT_AT(v, m_row, 0);
+                SOR_MAT_AT(m, m_row, m_col) *= SOR_MAT_AT(v, m_row, 0);
         }
     }
-    else assert(0 && "mat_mul_vec: v's size must be 1 x cols or rows x 1");
+    else SOR_CHECK(0 && "sor_mat_mul_vec: v's size must be 1 x cols or rows x 1");
 }
 
-void mat_div_vec(Matrix m, Matrix v) {
-    assert(m.data != NULL && v.data != NULL);
+void sor_mat_div_vec(SorMat m, SorMat v) {
+    SOR_CHECK(m.data != NULL && v.data != NULL);
 
     if (v.rows == 1 && v.cols == m.cols) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             for (int m_col = 0; m_col < m.cols; m_col++)
-                MAT_AT(m, m_row, m_col) /= MAT_AT(v, 0, m_col);
+                SOR_MAT_AT(m, m_row, m_col) /= SOR_MAT_AT(v, 0, m_col);
         }
     }
     else if (v.cols == 1 && v.rows == m.rows) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             for (int m_col = 0; m_col < m.cols; m_col++)
-                MAT_AT(m, m_row, m_col) /= MAT_AT(v, m_row, 0);
+                SOR_MAT_AT(m, m_row, m_col) /= SOR_MAT_AT(v, m_row, 0);
         }
     }
-    else assert(0 && "mat_div_vec: v's size must be 1 x cols or rows x 1");
+    else SOR_CHECK(0 && "sor_mat_div_vec: v's size must be 1 x cols or rows x 1");
 }
 
-void mat_sum(Matrix out, Matrix m, MatAxis axis) {
-    assert(m.data != NULL && out.data != NULL);
-    assert(out.data != m.data);
+void sor_mat_sum(SorMat out, SorMat m, SorMatAxis axis) {
+    SOR_CHECK(m.data != NULL && out.data != NULL);
+    SOR_CHECK(out.data != m.data);
 
-    if (axis == MAT_ROW && out.rows == 1 && out.cols == m.cols) {
+    if (axis == SOR_MAT_ROW && out.rows == 1 && out.cols == m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
             double sum = 0;
             for (int m_row = 0; m_row < m.rows; m_row++)
-                sum += MAT_AT(m, m_row, m_col);
-            MAT_AT(out, 0, m_col) = (MatScalar)sum;
+                sum += SOR_MAT_AT(m, m_row, m_col);
+            SOR_MAT_AT(out, 0, m_col) = (SorScalar)sum;
         }
     }
-    else if (axis == MAT_COL && out.rows == m.rows && out.cols == 1) {
+    else if (axis == SOR_MAT_COL && out.rows == m.rows && out.cols == 1) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             double sum = 0;
             for (int m_col = 0; m_col < m.cols; m_col++)
-                sum += MAT_AT(m, m_row, m_col);
-            MAT_AT(out, m_row, 0) = (MatScalar)sum;
+                sum += SOR_MAT_AT(m, m_row, m_col);
+            SOR_MAT_AT(out, m_row, 0) = (SorScalar)sum;
         }
     }
-    else assert(0 && "mat_sum: out's size must be 1 x cols (MAT_ROW) or rows x 1 (MAT_COL)");
+    else SOR_CHECK(0 && "sor_mat_sum: out's size must be 1 x cols (SOR_MAT_ROW) or rows x 1 (SOR_MAT_COL)");
 }
 
-void mat_mean(Matrix out, Matrix m, MatAxis axis) {
-    assert(m.data != NULL && out.data != NULL);
-    assert(out.data != m.data);
+void sor_mat_mean(SorMat out, SorMat m, SorMatAxis axis) {
+    SOR_CHECK(m.data != NULL && out.data != NULL);
+    SOR_CHECK(out.data != m.data);
 
-    if (axis == MAT_ROW && out.rows == 1 && out.cols == m.cols) {
+    if (axis == SOR_MAT_ROW && out.rows == 1 && out.cols == m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
             double sum = 0;
             for (int m_row = 0; m_row < m.rows; m_row++)
-                sum += MAT_AT(m, m_row, m_col);
-            MAT_AT(out, 0, m_col) = (MatScalar)(sum / m.rows);
+                sum += SOR_MAT_AT(m, m_row, m_col);
+            SOR_MAT_AT(out, 0, m_col) = (SorScalar)(sum / m.rows);
         }
     }
-    else if (axis == MAT_COL && out.rows == m.rows && out.cols == 1) {
+    else if (axis == SOR_MAT_COL && out.rows == m.rows && out.cols == 1) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             double sum = 0;
             for (int m_col = 0; m_col < m.cols; m_col++)
-                sum += MAT_AT(m, m_row, m_col);
-            MAT_AT(out, m_row, 0) = (MatScalar)(sum / m.cols);
+                sum += SOR_MAT_AT(m, m_row, m_col);
+            SOR_MAT_AT(out, m_row, 0) = (SorScalar)(sum / m.cols);
         }
     }
-    else assert(0 && "mat_mean: out's size must be 1 x cols (MAT_ROW) or rows x 1 (MAT_COL)");
+    else SOR_CHECK(0 && "sor_mat_mean: out's size must be 1 x cols (SOR_MAT_ROW) or rows x 1 (SOR_MAT_COL)");
 }
 
-void mat_max(Matrix out, Matrix m, MatAxis axis) {
-    assert(m.data != NULL && out.data != NULL);
-    assert(out.data != m.data);
+void sor_mat_std(SorMat out, SorMat m, SorMatAxis axis) {
+    SOR_CHECK(m.data != NULL && out.data != NULL);
+    SOR_CHECK(out.data != m.data);
 
-    if (axis == MAT_ROW && out.rows == 1 && out.cols == m.cols) {
+    if (axis == SOR_MAT_ROW && out.rows == 1 && out.cols == m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
-            MatScalar max = MAT_AT(m, 0, m_col);
-            for (int m_row = 1; m_row < m.rows; m_row++)
-                max = max < MAT_AT(m, m_row, m_col) ? MAT_AT(m, m_row, m_col) : max;
-            MAT_AT(out, 0, m_col) = max;
+            double mean = 0;
+             for (int m_row = 0; m_row < m.rows; m_row++)
+                mean += SOR_MAT_AT(m, m_row, m_col);
+            mean /= m.rows;
+
+            double std = 0;
+            for (int m_row = 0; m_row < m.rows; m_row++) {
+                double diff = SOR_MAT_AT(m, m_row, m_col) - mean;
+                std += diff * diff;
+            }
+            SOR_MAT_AT(out, 0, m_col) = (SorScalar)sqrt(std / m.rows);
         }
     }
-    else if (axis == MAT_COL && out.rows == m.rows && out.cols == 1) {
+    else if (axis == SOR_MAT_COL && out.rows == m.rows && out.cols == 1) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
-            MatScalar max = MAT_AT(m, m_row, 0);
-            for (int m_col = 1; m_col < m.cols; m_col++)
-                max = max < MAT_AT(m, m_row, m_col) ? MAT_AT(m, m_row, m_col) : max;
-            MAT_AT(out, m_row, 0) = max;
+            double mean = 0;
+            for (int m_col = 0; m_col < m.cols; m_col++)
+                mean += SOR_MAT_AT(m, m_row, m_col);
+            mean /= m.cols;
+
+            double std = 0;
+            for (int m_col = 0; m_col < m.rows; m_col++) {
+                double diff = SOR_MAT_AT(m, m_row, m_col) - mean;
+                std += diff * diff;
+            }
+            SOR_MAT_AT(out, m_row, 0) = (SorScalar)sqrt(std / m.cols);
         }
     }
-    else assert(0 && "mat_max: out's size must be 1 x cols (MAT_ROW) or rows x 1 (MAT_COL)");
+    else SOR_CHECK(0 && "sor_mat_std: out's size must be 1 x cols (SOR_MAT_ROW) or rows x 1 (SOR_MAT_COL)");
 }
 
-void mat_min(Matrix out, Matrix m, MatAxis axis) {
-    assert(m.data != NULL && out.data != NULL);
-    assert(out.data != m.data);
+void sor_mat_max(SorMat out, SorMat m, SorMatAxis axis) {
+    SOR_CHECK(m.data != NULL && out.data != NULL);
+    SOR_CHECK(out.data != m.data);
 
-    if (axis == MAT_ROW && out.rows == 1 && out.cols == m.cols) {
+    if (axis == SOR_MAT_ROW && out.rows == 1 && out.cols == m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
-            MatScalar min = MAT_AT(m, 0, m_col);
+            SorScalar max = SOR_MAT_AT(m, 0, m_col);
             for (int m_row = 1; m_row < m.rows; m_row++)
-                min = min > MAT_AT(m, m_row, m_col) ? MAT_AT(m, m_row, m_col) : min;
-            MAT_AT(out, 0, m_col) = min;
+                max = max < SOR_MAT_AT(m, m_row, m_col) ? SOR_MAT_AT(m, m_row, m_col) : max;
+            SOR_MAT_AT(out, 0, m_col) = max;
         }
     }
-    else if (axis == MAT_COL && out.rows == m.rows && out.cols == 1) {
+    else if (axis == SOR_MAT_COL && out.rows == m.rows && out.cols == 1) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
-            MatScalar min = MAT_AT(m, m_row, 0);
+            SorScalar max = SOR_MAT_AT(m, m_row, 0);
             for (int m_col = 1; m_col < m.cols; m_col++)
-                min = min > MAT_AT(m, m_row, m_col) ? MAT_AT(m, m_row, m_col) : min;
-            MAT_AT(out, m_row, 0) = min;
+                max = max < SOR_MAT_AT(m, m_row, m_col) ? SOR_MAT_AT(m, m_row, m_col) : max;
+            SOR_MAT_AT(out, m_row, 0) = max;
         }
     }
-    else assert(0 && "mat_min: out's size must be 1 x cols (MAT_ROW) or rows x 1 (MAT_COL)");
+    else SOR_CHECK(0 && "sor_mat_max: out's size must be 1 x cols (SOR_MAT_ROW) or rows x 1 (SOR_MAT_COL)");
 }
 
-void mat_argmax(int *out, size_t out_len, Matrix m, MatAxis axis) {
-    assert(m.data != NULL && out != NULL);
+void sor_mat_min(SorMat out, SorMat m, SorMatAxis axis) {
+    SOR_CHECK(m.data != NULL && out.data != NULL);
+    SOR_CHECK(out.data != m.data);
 
-    if (axis == MAT_ROW && out_len == (size_t) m.cols) {
+    if (axis == SOR_MAT_ROW && out.rows == 1 && out.cols == m.cols) {
+        for (int m_col = 0; m_col < m.cols; m_col++) {
+            SorScalar min = SOR_MAT_AT(m, 0, m_col);
+            for (int m_row = 1; m_row < m.rows; m_row++)
+                min = min > SOR_MAT_AT(m, m_row, m_col) ? SOR_MAT_AT(m, m_row, m_col) : min;
+            SOR_MAT_AT(out, 0, m_col) = min;
+        }
+    }
+    else if (axis == SOR_MAT_COL && out.rows == m.rows && out.cols == 1) {
+        for (int m_row = 0; m_row < m.rows; m_row++) {
+            SorScalar min = SOR_MAT_AT(m, m_row, 0);
+            for (int m_col = 1; m_col < m.cols; m_col++)
+                min = min > SOR_MAT_AT(m, m_row, m_col) ? SOR_MAT_AT(m, m_row, m_col) : min;
+            SOR_MAT_AT(out, m_row, 0) = min;
+        }
+    }
+    else SOR_CHECK(0 && "sor_mat_min: out's size must be 1 x cols (SOR_MAT_ROW) or rows x 1 (SOR_MAT_COL)");
+}
+
+void sor_mat_argmax(int *out, size_t out_len, SorMat m, SorMatAxis axis) {
+    SOR_CHECK(m.data != NULL && out != NULL);
+
+    if (axis == SOR_MAT_ROW && out_len == (size_t) m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
             int max_idx = 0;
             for (int m_row = 1; m_row < m.rows; m_row++)
-                max_idx = MAT_AT(m, max_idx, m_col) < MAT_AT(m, m_row, m_col) ? m_row : max_idx;
+                max_idx = SOR_MAT_AT(m, max_idx, m_col) < SOR_MAT_AT(m, m_row, m_col) ? m_row : max_idx;
             out[m_col] = max_idx;
         }
     }
-    else if (axis == MAT_COL && out_len == (size_t) m.rows) {
+    else if (axis == SOR_MAT_COL && out_len == (size_t) m.rows) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             int max_idx = 0;
             for (int m_col = 1; m_col < m.cols; m_col++)
-                max_idx = MAT_AT(m, m_row, max_idx) < MAT_AT(m, m_row, m_col) ? m_col : max_idx;
+                max_idx = SOR_MAT_AT(m, m_row, max_idx) < SOR_MAT_AT(m, m_row, m_col) ? m_col : max_idx;
             out[m_row] = max_idx;
         }
     }
-    else assert(0 && "mat_argmax: out's length must be m.cols (MAT_ROW) or m.rows (MAT_COL)");
+    else SOR_CHECK(0 && "sor_mat_argmax: out's length must be m.cols (SOR_MAT_ROW) or m.rows (SOR_MAT_COL)");
 }
 
-void mat_argmin(int *out, size_t out_len, Matrix m, MatAxis axis) {
-    assert(m.data != NULL && out != NULL);
+void sor_mat_argmin(int *out, size_t out_len, SorMat m, SorMatAxis axis) {
+    SOR_CHECK(m.data != NULL && out != NULL);
 
-    if (axis == MAT_ROW && out_len == (size_t) m.cols) {
+    if (axis == SOR_MAT_ROW && out_len == (size_t) m.cols) {
         for (int m_col = 0; m_col < m.cols; m_col++) {
             int min_idx = 0;
             for (int m_row = 1; m_row < m.rows; m_row++)
-                min_idx = MAT_AT(m, min_idx, m_col) > MAT_AT(m, m_row, m_col) ? m_row : min_idx;
+                min_idx = SOR_MAT_AT(m, min_idx, m_col) > SOR_MAT_AT(m, m_row, m_col) ? m_row : min_idx;
             out[m_col] = min_idx;
         }
     }
-    else if (axis == MAT_COL && out_len == (size_t) m.rows) {
+    else if (axis == SOR_MAT_COL && out_len == (size_t) m.rows) {
         for (int m_row = 0; m_row < m.rows; m_row++) {
             int min_idx = 0;
             for (int m_col = 1; m_col < m.cols; m_col++)
-                min_idx = MAT_AT(m, m_row, min_idx) > MAT_AT(m, m_row, m_col) ? m_col : min_idx;
+                min_idx = SOR_MAT_AT(m, m_row, min_idx) > SOR_MAT_AT(m, m_row, m_col) ? m_col : min_idx;
             out[m_row] = min_idx;
         }
     }
-    else assert(0 && "mat_argmin: out's length must be m.cols (MAT_ROW) or m.rows (MAT_COL)");
+    else SOR_CHECK(0 && "sor_mat_argmin: out's length must be m.cols (SOR_MAT_ROW) or m.rows (SOR_MAT_COL)");
 }
 
-MatScalar mat_sum_all(Matrix m)  {
-    assert(m.data != NULL);
+SorScalar sor_mat_sum_all(SorMat m)  {
+    SOR_CHECK(m.data != NULL);
     double sum = 0;
     for (int i = 0; i < m.rows * m.cols; i++) sum += m.data[i];
     return sum;
 }
 
-MatScalar mat_mean_all(Matrix m)  {
-    assert(m.data != NULL);
+SorScalar sor_mat_mean_all(SorMat m)  {
+    SOR_CHECK(m.data != NULL);
     double sum = 0;
     int m_len = m.rows * m.cols;
     for (int i = 0; i < m_len; i++) sum += m.data[i];
-    return (MatScalar)(sum / m_len);
+    return (SorScalar)(sum / m_len);
 }
 
-MatScalar mat_max_all(Matrix m) {
-    assert(m.data != NULL);
-    MatScalar max = m.data[0];
+SorScalar sor_mat_max_all(SorMat m) {
+    SOR_CHECK(m.data != NULL);
+    SorScalar max = m.data[0];
     for (int i = 1; i < m.rows * m.cols; i++)
         max = max < m.data[i] ? m.data[i] : max;
     return max;
 }
 
-MatScalar mat_min_all(Matrix m) {
-    assert(m.data != NULL);
-    MatScalar min = m.data[0];
+SorScalar sor_mat_min_all(SorMat m) {
+    SOR_CHECK(m.data != NULL);
+    SorScalar min = m.data[0];
     for (int i = 1; i < m.rows * m.cols; i++)
         min = min > m.data[i] ? m.data[i] : min;
     return min;
 }
 
-MatScalar mat_norm(Matrix m) {
-    assert(m.data != NULL);
+SorScalar sor_mat_norm(SorMat m) {
+    SOR_CHECK(m.data != NULL);
     double squared_sum = 0;
     int m_len = m.rows * m.cols;
     for (int i = 0; i < m_len; i++)
         squared_sum += m.data[i] * m.data[i];
-    return (MatScalar) sqrt(squared_sum);
+    return (SorScalar) sqrt(squared_sum);
 }
 
-int mat_equal(Matrix a, Matrix b, MatScalar epsilon) {
-    assert(a.data != NULL && b.data != NULL);
+int sor_mat_equal(SorMat a, SorMat b, SorScalar epsilon) {
+    SOR_CHECK(a.data != NULL && b.data != NULL);
     if (a.rows != b.rows || a.cols != b.cols) return 0;
 
     for (int i = 0; i < a.rows * a.cols; i++)
@@ -605,100 +659,40 @@ int mat_equal(Matrix a, Matrix b, MatScalar epsilon) {
     return 1;
 }
 
-void mat_print(Matrix m) {
-    assert(m.data != NULL);
+void sor_mat_print(SorMat m) {
+    SOR_CHECK(m.data != NULL);
 
     for (int row = 0; row < m.rows; row++) {
         printf("%s", row == 0 ? "[[" : " [");
         for (int col = 0; col < m.cols; col++)
-            printf(" %8.4f", (double)MAT_AT(m, row, col));
+            printf(" %8.4f", (double)SOR_MAT_AT(m, row, col));
         printf("%s\n", row == m.rows - 1 ? " ]]" : " ]");
     }
 }
 
-void mat_print_shape(Matrix m) {
-    assert(m.data != NULL);
+void sor_mat_print_shape(SorMat m) {
+    SOR_CHECK(m.data != NULL);
     printf("(%d, %d)\n", m.rows, m.cols);
 }
 
-int mat_save(Matrix m, const char *path) {
-    assert(m.data != NULL && path != NULL);
-    FILE *fp = fopen(path, "wb");
-
-    if (fp == NULL) {
-        fprintf(stderr, "mat_save: cannot open '%s'\n", path);
-        return 0;
-    }
-
-    int ele_size = (int) sizeof(MatScalar);
-    size_t data_len = (size_t)m.rows * m.cols;
-
-    int is_completed = fwrite(&m.rows, sizeof(int), 1, fp) == 1
-                    && fwrite(&m.cols, sizeof(int), 1, fp) == 1
-                    && fwrite(&ele_size, sizeof(int), 1, fp) == 1
-                    && fwrite(m.data, sizeof(MatScalar), data_len, fp) == data_len;
-
-    if (!is_completed)
-        fprintf(stderr, "mat_save: write failed for '%s'\n", path);
-
-    fclose(fp);
-    return is_completed;
-}
-
-int mat_load(Matrix out, const char *path) {
-    assert(out.data != NULL && path != NULL);
-    FILE *fp = fopen(path, "rb");
-
-    if (fp == NULL) {
-        fprintf(stderr, "mat_load: cannot open '%s'\n", path);
-        return 0;
-    }
-
-    int rows, cols, ele_size;
-    int is_completed = fread(&rows, sizeof(int), 1, fp) == 1
-                    && fread(&cols, sizeof(int), 1, fp) == 1
-                    && fread(&ele_size, sizeof(int), 1, fp) == 1;
-
-    if (!is_completed)
-        fprintf(stderr, "mat_load: cannot read header of '%s'\n", path);
-    else if (rows != out.rows || cols != out.cols) {
-        fprintf(stderr, "mat_load: '%s' is %d x %d, expected %d x %d\n",
-                path, rows, cols, out.rows, out.cols);
-        is_completed = 0;
-    }
-    else if (ele_size != (int)sizeof(MatScalar)) {
-        fprintf(stderr, "mat_load: '%s' has %d-byte elements, expected %d\n",
-                path, ele_size, (int)sizeof(MatScalar));
-        is_completed = 0;
-    }
-    else {
-        size_t data_len = (size_t)out.rows * out.cols;
-        is_completed = fread(out.data, ele_size, data_len, fp) == data_len;
-        if (!is_completed) fprintf(stderr, "mat_load: reading element values failed for '%s'\n", path);
-    }
-
-    fclose(fp);
-    return is_completed;
-}
-
-MatScalar mat_trace(Matrix m) {
-    assert(m.data != NULL);
-    assert(m.rows == m.cols);
+SorScalar sor_mat_trace(SorMat m) {
+    SOR_CHECK(m.data != NULL);
+    SOR_CHECK(m.rows == m.cols);
 
     double trace = 0.0;
     for (int i = 0; i < m.rows; i++)
-        trace += MAT_AT(m, i, i);
-    return (MatScalar)trace;
+        trace += SOR_MAT_AT(m, i, i);
+    return (SorScalar)trace;
 }
 
-MatScalar mat_det(Arena *arena, Matrix m) {
-    assert(m.data != NULL);
-    assert(m.rows == m.cols);
+SorScalar sor_mat_det(SorArena *arena, SorMat m) {
+    SOR_CHECK(m.data != NULL);
+    SOR_CHECK(m.rows == m.cols);
 
-    size_t mark = arena_mark(arena);
+    size_t mark = sor_arena_mark(arena);
 
-    Matrix work = mat_new(arena, m.rows, m.cols);
-    mat_copy(work, m);
+    SorMat work = sor_mat_new(arena, m.rows, m.cols);
+    sor_mat_copy(work, m);
 
     double det = 1.0;
     for (int col = 0; col < work.cols; col++) {
@@ -706,65 +700,65 @@ MatScalar mat_det(Arena *arena, Matrix m) {
         // Find the row where the largest absolute value is inside
         // That row will become a pivot row for one column.
         for (int row = col + 1; row < work.rows; row++) {
-            if (fabs(MAT_AT(work, row, col)) > fabs(MAT_AT(work, pivot_row, col)))
+            if (fabs(SOR_MAT_AT(work, row, col)) > fabs(SOR_MAT_AT(work, pivot_row, col)))
                 pivot_row = row;
         }
 
-        if (MAT_AT(work, pivot_row, col) == 0) {
+        if (SOR_MAT_AT(work, pivot_row, col) == 0) {
             det = 0.0;  // That's mean this matrix is singular
             break;
         }
 
         // We need a pivot row == col (all pivots should be diagnal), for perform a gaussian elimination
         if (pivot_row != col) {
-            mat_swap_rows(work, col, pivot_row);
+            sor_mat_swap_rows(work, col, pivot_row);
             det = -det; // each row swap flips the sign of the determinant
         }
 
         for (int row = col + 1; row < work.rows; row++) {
-            MatScalar s = -(MAT_AT(work, row, col) / MAT_AT(work, col, col));
-            mat_add_scaled(mat_row_view(work, row), s, mat_row_view(work, col));
+            SorScalar s = -(SOR_MAT_AT(work, row, col) / SOR_MAT_AT(work, col, col));
+            sor_mat_add_scaled(sor_mat_row_view(work, row), s, sor_mat_row_view(work, col));
         }
-        det *= MAT_AT(work, col, col);
+        det *= SOR_MAT_AT(work, col, col);
     }
-    arena_rewind(arena, mark);
-    return (MatScalar)det;
+    sor_arena_rewind(arena, mark);
+    return (SorScalar)det;
 }
 
-int mat_inverse(Arena *arena, Matrix out, Matrix m) {
-    assert(m.data != NULL && out.data != NULL);
-    assert(m.rows == m.cols);
-    assert(mat_same_shape(m, out));
-    assert(out.data != m.data);
+int sor_mat_inverse(SorArena *arena, SorMat out, SorMat m) {
+    SOR_CHECK(m.data != NULL && out.data != NULL);
+    SOR_CHECK(m.rows == m.cols);
+    SOR_CHECK(sor_mat_same_shape(m, out));
+    SOR_CHECK(out.data != m.data);
 
-    size_t mark = arena_mark(arena);
+    size_t mark = sor_arena_mark(arena);
 
-    Matrix work = mat_new(arena, m.rows, m.cols);
-    mat_copy(work, m);
-    mat_identity(out);
+    SorMat work = sor_mat_new(arena, m.rows, m.cols);
+    sor_mat_copy(work, m);
+    sor_mat_identity(out);
 
     int is_completed = gauss_jordan(work, out);
 
-    arena_rewind(arena, mark);
+    sor_arena_rewind(arena, mark);
     return is_completed;
 }
 
-int mat_solve(Arena *arena, Matrix x, Matrix A, Matrix b) {
-    assert(x.data != NULL && A.data != NULL && b.data != NULL);
-    assert(A.rows == A.cols);
-    assert(A.rows == b.rows);
-    assert(mat_same_shape(b, x));
-    assert(x.data != A.data && x.data != b.data);
+int sor_mat_solve(SorArena *arena, SorMat x, SorMat A, SorMat b) {
+    SOR_CHECK(x.data != NULL && A.data != NULL && b.data != NULL);
+    SOR_CHECK(A.rows == A.cols);
+    SOR_CHECK(A.rows == b.rows);
+    SOR_CHECK(sor_mat_same_shape(b, x));
+    SOR_CHECK(x.data != A.data && x.data != b.data);
 
-    size_t mark = arena_mark(arena);
+    size_t mark = sor_arena_mark(arena);
 
-    Matrix work = mat_new(arena, A.rows, A.cols);
-    mat_copy(work, A);
+    SorMat work = sor_mat_new(arena, A.rows, A.cols);
+    sor_mat_copy(work, A);
 
-    mat_copy(x, b);
+    sor_mat_copy(x, b);
 
     int is_completed = gauss_jordan(work, x);
 
-    arena_rewind(arena, mark);
+    sor_arena_rewind(arena, mark);
     return is_completed;
 }
