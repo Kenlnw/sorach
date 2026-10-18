@@ -176,7 +176,7 @@ void sor_mat_mul(SorMat out, SorMat a, SorMat b);
 // Gives the same result as sor_mat_transpose followed by sor_mat_mul, without
 // needing a matrix to hold a.T.
 // Requires a.rows == b.rows; out must be a.cols x b.cols.
-void sor_mat_mul_at(SorMat out, SorMat a, SorMat b);
+void sor_mat_mul_tp(SorMat out, SorMat a, SorMat b);
 
 // Transpose: out = a.T. out must be a.cols x a.rows.
 void sor_mat_transpose(SorMat out, SorMat a);
