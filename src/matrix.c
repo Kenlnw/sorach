@@ -231,7 +231,7 @@ void sor_mat_mul(SorMat out, SorMat a, SorMat b) {
     }
 }
 
-void sor_mat_mul_tp(SorMat out, SorMat a, SorMat b) {
+void sor_mat_mul_at(SorMat out, SorMat a, SorMat b) {
     SOR_CHECK(a.data != NULL && b.data != NULL && out.data != NULL);
     SOR_CHECK(out.data != a.data && out.data != b.data);
     SOR_CHECK(a.rows == b.rows);
